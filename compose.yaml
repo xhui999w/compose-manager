@@ -1,0 +1,28 @@
+name: compose-manager
+
+services:
+  compose-manager:
+    build:
+      context: .
+    image: compose-manager:local
+    container_name: compose-manager
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Asia/Shanghai
+      CM_NAS_IP: ${CM_NAS_IP:-127.0.0.1}
+      CM_DEFAULT_SCHEME: ${CM_DEFAULT_SCHEME:-http}
+      CM_COMPOSE_ROOTS: /compose
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      - ./backups:/backups
+      # 网页编辑需要读写权限；请将左侧替换为实际 Compose 根目录。
+      - ${CM_COMPOSE_PATH:-./examples}:/compose
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - ${DOCKER_GID:-0}
+    cap_drop:
+      - ALL

@@ -1,0 +1,11 @@
+.git
+.gitignore
+frontend/node_modules
+frontend/dist
+backend/web/dist
+data
+backups
+work
+outputs
+*.log
+

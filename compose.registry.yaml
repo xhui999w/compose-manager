@@ -1,0 +1,25 @@
+name: compose-manager
+
+services:
+  compose-manager:
+    image: ${CM_IMAGE:?请设置 CM_IMAGE，例如 ghcr.io/your-name/compose-manager:latest}
+    container_name: compose-manager
+    restart: unless-stopped
+    ports:
+      - "${CM_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      CM_NAS_IP: ${CM_NAS_IP:-127.0.0.1}
+      CM_DEFAULT_SCHEME: ${CM_DEFAULT_SCHEME:-http}
+      CM_COMPOSE_ROOTS: /compose
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CM_DATA_PATH:-./data}:/data
+      - ${CM_BACKUP_PATH:-./backups}:/backups
+      - ${CM_COMPOSE_PATH:-./compose-projects}:/compose
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - ${DOCKER_GID:-0}
+    cap_drop:
+      - ALL

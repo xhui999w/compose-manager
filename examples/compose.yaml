@@ -1,0 +1,7 @@
+services:
+  hello:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+
