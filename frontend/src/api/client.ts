@@ -1,4 +1,4 @@
-import type { ComposeFile, ComposeVersion, Container, ImageReference, Project, SystemInfo, UpdateRecord } from '../types'
+import type { ComposeFile, ComposeVersion, Container, ImageReference, Project, SessionState, SystemInfo, UpdateRecord } from '../types'
 
 type Envelope<T> = { data: T; warning?: string | null }
 type APIErrorPayload = { error?: { code?: string; message?: string } }
@@ -9,13 +9,24 @@ export class APIError extends Error {
   }
 }
 
+// 会话在其它标签页过期、或服务端重启后更换了签名密钥时，任意接口都会返回 401。
+// 由 App 注册回调统一退回登录页，避免每个页面各写一遍跳转逻辑。
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
+    // 会话走 HttpOnly Cookie，必须显式携带凭证（跨源部署时也需要）。
+    credentials: 'same-origin',
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as APIErrorPayload
+    if (response.status === 401) unauthorizedHandler?.()
     throw new APIError(payload.error?.code ?? 'REQUEST_FAILED', payload.error?.message ?? response.statusText, response.status)
   }
   if (response.status === 204) return undefined as T
@@ -23,6 +34,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  session: async () => (await request<Envelope<SessionState>>('/auth/session')).data,
+  login: async (username: string, password: string) => (await request<Envelope<{ username: string; expiresAt: string }>>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })).data,
+  logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   overview: async () => (await request<Envelope<SystemInfo>>('/overview')).data,
   projects: async () => (await request<Envelope<Project[]>>('/compose/projects')).data,
   projectAction: (key: string, action: string, service = '') => request<{ output: string }>(`/compose/projects/${encodeURIComponent(key)}/actions`, { method: 'POST', body: JSON.stringify({ action, service }) }),

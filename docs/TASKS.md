@@ -82,9 +82,24 @@
 
 验收：URL 经过解析/转义；不依赖 UGREENlink 未公开 API；Provider 可替换扩展。
 
+## Phase 8 — 登录认证
+
+- [x] 应用内登录：`POST /api/v1/auth/login`、`POST /api/v1/auth/logout`、`GET /api/v1/auth/session`。
+- [x] bcrypt（cost 12）口令校验；支持明文口令与 `CM_AUTH_PASSWORD_HASH` 两种来源。
+- [x] HMAC-SHA256 无状态会话 Cookie（HttpOnly + SameSite=Lax），服务端不存会话表。
+- [x] 会话签名密钥自动生成并落盘（`/data/.session-secret`，0600）；容器重启不掉登录态。
+- [x] 登录失败按客户端 IP 限流（5 次 / 5 分钟），只信任 TCP 对端地址、不信任 `X-Forwarded-For`。
+- [x] `/api/*` 统一拦截，豁免 `/api/v1/health` 与三个 auth 接口；静态资源匿名可达以保证登录页可渲染。
+- [x] 未配置口令时整体降级为不鉴权，保持既有部署升级后仍可访问。
+- [x] 前端登录页、启动时会话探测、任意接口 401 统一退回登录页、侧边栏用户区与登出。
+- [x] `-hash-password` 开关，便于在 NAS 上生成哈希而不留明文口令。
+- [~] 容器内实际生效（镜像重建 + NAS 上 Docker Socket 挂载）待真实主机集成验证。
+
+验收：未登录无法访问任何 `/api/*` 业务接口；登录后功能与改造前一致；不配置口令时行为与改造前完全一致。
+
 ## 发布前仍需
 
 - [ ] 在 amd64 与 arm64 Linux + Docker Engine 上运行集成测试。
 - [ ] 确认最低 Docker Engine/Compose v2 版本。
-- [ ] 增加反向代理认证部署示例。
+- [ ] 反向代理认证部署示例（应用内登录已实现，此项为可选加固，非必需）。
 - [ ] 选择 License、版本号和镜像发布流程。

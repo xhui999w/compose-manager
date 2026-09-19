@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compose-manager/compose-manager/backend/internal/app"
+	"github.com/compose-manager/compose-manager/backend/internal/auth"
 	"github.com/compose-manager/compose-manager/backend/internal/compose"
 )
 
@@ -19,15 +20,19 @@ type Server struct {
 	service *app.Service
 	logger  *slog.Logger
 	mux     *http.ServeMux
+	authn   *auth.Authenticator
 }
 
-func New(service *app.Service, logger *slog.Logger, static http.Handler) http.Handler {
-	server := &Server{service: service, logger: logger, mux: http.NewServeMux()}
+func New(service *app.Service, logger *slog.Logger, static http.Handler, authenticator *auth.Authenticator) http.Handler {
+	server := &Server{service: service, logger: logger, mux: http.NewServeMux(), authn: authenticator}
 	server.routes(static)
-	return server.security(server.recover(server.log(server.mux)))
+	return server.security(server.recover(server.log(server.authGuard(server.mux))))
 }
 
 func (s *Server) routes(static http.Handler) {
+	s.mux.HandleFunc("POST /api/v1/auth/login", s.login)
+	s.mux.HandleFunc("POST /api/v1/auth/logout", s.logout)
+	s.mux.HandleFunc("GET /api/v1/auth/session", s.session)
 	s.mux.HandleFunc("GET /api/v1/health", s.health)
 	s.mux.HandleFunc("GET /api/v1/overview", s.overview)
 	s.mux.HandleFunc("GET /api/v1/compose/projects", s.projects)
@@ -54,6 +59,102 @@ func (s *Server) routes(static http.Handler) {
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.service.Health(r.Context()))
+}
+
+// authEnabled 表示面板是否要求登录。
+func (s *Server) authEnabled() bool { return s.authn != nil && s.authn.Enabled() }
+
+// login 校验用户名口令并下发会话 Cookie。
+func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !s.authEnabled() {
+		writeError(w, http.StatusBadRequest, "AUTH_DISABLED", auth.ErrNotConfigured)
+		return
+	}
+	var request struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	if err := s.authn.Authenticate(auth.ClientKey(r), request.Username, request.Password); err != nil {
+		if errors.Is(err, auth.ErrTooManyAttempts) {
+			writeError(w, http.StatusTooManyRequests, "TOO_MANY_ATTEMPTS", err)
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", err)
+		return
+	}
+	token, expires, err := s.authn.Issue()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "SESSION_ISSUE_FAILED", err)
+		return
+	}
+	s.authn.SetCookie(w, token, expires)
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
+		"username":  s.authn.Username(),
+		"expiresAt": expires.UTC().Format(time.RFC3339),
+	}})
+}
+
+// logout 清除会话 Cookie；即使当前没有有效会话也返回成功，保证幂等。
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if s.authn != nil {
+		s.authn.ClearCookie(w)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// session 供前端启动时探测登录态。
+//
+// 始终返回 200，用 authenticated 字段表达状态：这样前端无需把「未登录」当成接口异常处理。
+func (s *Server) session(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !s.authEnabled() {
+		writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"required": false, "authenticated": true, "username": ""}})
+		return
+	}
+	authenticated := s.authn.Verify(auth.TokenFromRequest(r)) == nil
+	username := ""
+	if authenticated {
+		username = s.authn.Username()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"required": true, "authenticated": authenticated, "username": username}})
+}
+
+// authGuard 拦截未携带有效会话的 API 请求。
+//
+// 只保护 /api/ 前缀：静态资源必须匿名可达，否则浏览器取不到前端代码、也就渲染不出登录页。
+// 面板本身不含敏感数据的接口只有 /api/v1/health（供容器健康检查）与 auth 自身三个接口。
+func (s *Server) authGuard(next http.Handler) http.Handler {
+	if !s.authEnabled() {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if authExempt(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if err := s.authn.Verify(auth.TokenFromRequest(r)); err != nil {
+			writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", err)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func authExempt(path string) bool {
+	if !strings.HasPrefix(path, "/api/") {
+		return true
+	}
+	switch path {
+	case "/api/v1/health", "/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/session":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {

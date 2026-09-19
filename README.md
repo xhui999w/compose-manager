@@ -74,13 +74,53 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u <GitHub 用户名> --password-stdin
 默认挂载：
 
 - `/var/run/docker.sock`（只由后端访问）
-- `/data`（SQLite 与历史记录）
+- `/data`（SQLite、历史记录与会话签名密钥）
 - `/backups`（Compose 文件备份）
 - `/compose`（待扫描 Compose 目录，默认只读；若启用网页编辑需按需改成读写）
 
-Docker Socket 等同宿主机高权限入口。仅在可信局域网部署，并在反向代理处启用认证；MVP 不提供多租户或企业 RBAC。
+Docker Socket 等同宿主机高权限入口。请务必启用登录认证（见下节），并且只部署在可信局域网；MVP 不提供多租户或企业 RBAC。
 
 若容器内提示无权访问 Docker Socket，请将宿主机 Socket 的组 ID 传给 `DOCKER_GID`（例如 `stat -c '%g' /var/run/docker.sock` 的结果）后重建容器。
+
+## 登录认证
+
+面板默认**不启用**登录——不设置口令时行为与旧版本一致，避免升级后被锁在门外。设置以下任意一个变量即可开启：
+
+| 变量 | 说明 |
+| --- | --- |
+| `CM_AUTH_PASSWORD` | 明文口令，至少 8 个字符。服务端启动时即时转成 bcrypt 哈希，仅保存在内存。 |
+| `CM_AUTH_PASSWORD_HASH` | bcrypt 哈希。与上一项同时配置时以哈希为准。**推荐**，可避免明文出现在 `.env`。 |
+
+生成哈希（用镜像自带开关，避免把明文口令写进部署文件）：
+
+```bash
+docker run --rm ghcr.io/<GitHub 用户名>/compose-manager:latest -hash-password '你的口令'
+```
+
+把输出的 bcrypt 字符串填进 `.env`：
+
+```dotenv
+CM_AUTH_USER=admin
+CM_AUTH_PASSWORD_HASH=$2a$12$....................................................
+```
+
+其余可选项：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `CM_AUTH_USER` | `admin` | 登录用户名 |
+| `CM_SESSION_SECRET` | 自动生成并落盘 | 会话 Cookie 的签名密钥。64 位十六进制或 ≥16 字节原始字符串。 |
+| `CM_SESSION_SECRET_PATH` | `/data/.session-secret` | 未显式设置密钥时的落盘位置（0600） |
+| `CM_SESSION_TTL` | `12h` | 登录有效期 |
+| `CM_COOKIE_SECURE` | `false` | 通过 HTTPS 域名（如 Cloudflare 隧道）访问时建议设为 `true` |
+
+行为说明：
+
+- 会话是 HMAC-SHA256 签名的无状态 Cookie，服务端不存会话表。**容器重启不会掉登录态**（密钥复用 `/data/.session-secret`）。
+- **登出只清除浏览器 Cookie**；若 token 已被复制，它在有效期内仍然可用。需要立即吊销全部会话时更换 `CM_SESSION_SECRET`。
+- 登录失败按客户端 IP 限流：5 次失败后锁定 5 分钟。面板挂在反向代理后面时，所有请求共用同一个限流桶（服务端不信任 `X-Forwarded-For`）。
+- `/api/v1/health` 保持匿名可访问，供容器健康检查使用；其余 `/api/*` 接口均需登录。
+
 
 ## 配置
 
@@ -94,6 +134,15 @@ Docker Socket 等同宿主机高权限入口。仅在可信局域网部署，并
 | `CM_NAS_IP` | 自动推断 | 内网快捷访问主机 |
 | `CM_DEFAULT_SCHEME` | `http` | 快捷访问默认协议 |
 | `CM_DEMO_MODE` | `false` | 使用只读演示数据，便于界面预览 |
+| `CM_AUTH_USER` | `admin` | 登录用户名 |
+| `CM_AUTH_PASSWORD` | 空 | 明文口令（≥8 字符）；不填则不启用登录 |
+| `CM_AUTH_PASSWORD_HASH` | 空 | bcrypt 哈希，优先于 `CM_AUTH_PASSWORD` |
+| `CM_SESSION_SECRET` | 自动生成 | 会话 Cookie 签名密钥 |
+| `CM_SESSION_SECRET_PATH` | `/data/.session-secret` | 自动生成密钥的落盘位置（0600） |
+| `CM_SESSION_TTL` | `12h` | 登录有效期 |
+| `CM_COOKIE_SECURE` | `false` | HTTPS 访问时建议设为 `true` |
+
+登录认证的完整说明（含生成哈希与登出语义）见上文[登录认证](#登录认证)一节。
 
 ## 文档
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, SettingOutlined } from '@ant-design/icons'
-import { Layout, Menu } from 'antd'
+import { ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons'
+import { Button, Layout, Menu, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { SystemStatusBar } from './SystemStatusBar'
 
@@ -14,7 +14,9 @@ const items: MenuProps['items'] = [
   { key: 'settings', icon: <SettingOutlined />, label: '设置' },
 ]
 
-export function AppShell({ page, onPageChange, children }: { page: PageKey; onPageChange: (page: PageKey) => void; children: ReactNode }) {
+export function AppShell({ page, onPageChange, username, onLogout, children }: { page: PageKey; onPageChange: (page: PageKey) => void; username: string; onLogout: () => void; children: ReactNode }) {
+  // 未启用登录时 username 为空串，此时不展示用户区，避免出现一个没有名字的账号入口。
+  const showUser = username.trim() !== ''
   return (
     <Layout className="app-shell">
       <Layout.Sider className="app-sidebar" width={196} theme="light" breakpoint="xl" collapsedWidth={60}>
@@ -23,7 +25,16 @@ export function AppShell({ page, onPageChange, children }: { page: PageKey; onPa
           <div className="brand-copy"><strong>Compose Manager</strong><span>更简单的 Compose 管理</span></div>
         </div>
         <Menu className="app-menu" mode="inline" selectedKeys={[page]} items={items} onClick={({ key }) => onPageChange(key as PageKey)} />
-        <div className="sidebar-foot"><span className="health-dot" /><span>Docker Engine</span></div>
+        <div className="sidebar-foot">
+          {showUser ? (
+            <div className="sidebar-user">
+              <span className="user-avatar">{username.slice(0, 1)}</span>
+              <span className="user-name" title={username}>{username}</span>
+              <Tooltip title="登出"><Button aria-label="登出" type="text" size="small" icon={<LogoutOutlined />} onClick={onLogout} /></Tooltip>
+            </div>
+          ) : null}
+          <div className="sidebar-health"><span className="health-dot" /><span>Docker Engine</span></div>
+        </div>
       </Layout.Sider>
       <Layout className="app-main">
         <SystemStatusBar />

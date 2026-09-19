@@ -81,3 +81,6 @@ export type UpdateRecord = {
 export type ComposeFile = { path: string; content: string; sha256: string }
 export type ComposeVersion = { id: number; projectKey: string; filePath: string; sha256: string; createdAt: string }
 
+// required 为 false 表示服务端未配置登录口令（面板不鉴权）。
+export type SessionState = { required: boolean; authenticated: boolean; username: string }
+

@@ -18,6 +18,21 @@ type Config struct {
 	DefaultScheme    string
 	DemoMode         bool
 	OperationTimeout time.Duration
+	Auth             AuthConfig
+}
+
+// AuthConfig 描述登录认证配置。
+//
+// 既没给 CM_AUTH_PASSWORD 也没给 CM_AUTH_PASSWORD_HASH 时面板不启用登录，
+// 保持与既有部署兼容；两种口令来源同时存在时以哈希为准。
+type AuthConfig struct {
+	Username          string
+	Password          string
+	PasswordHash      string
+	SessionSecret     string
+	SessionSecretPath string
+	SessionTTL        time.Duration
+	CookieSecure      bool
 }
 
 func Load() Config {
@@ -32,6 +47,17 @@ func Load() Config {
 		DefaultScheme:    env("CM_DEFAULT_SCHEME", "http"),
 		DemoMode:         envBool("CM_DEMO_MODE", false),
 		OperationTimeout: envDuration("CM_OPERATION_TIMEOUT", 2*time.Minute),
+		Auth: AuthConfig{
+			Username: env("CM_AUTH_USER", "admin"),
+			// 口令不做 TrimSpace：前后空格是口令的一部分，裁剪会与用户实际输入不一致。
+			Password:          os.Getenv("CM_AUTH_PASSWORD"),
+			PasswordHash:      os.Getenv("CM_AUTH_PASSWORD_HASH"),
+			SessionSecret:     os.Getenv("CM_SESSION_SECRET"),
+			SessionSecretPath: env("CM_SESSION_SECRET_PATH", filepath.Join(dataDir, ".session-secret")),
+			SessionTTL:        envDuration("CM_SESSION_TTL", 12*time.Hour),
+			// 默认 false：面板通常以 http://<内网 IP>:8080 直连，Secure Cookie 会被浏览器直接丢弃。
+			CookieSecure: envBool("CM_COOKIE_SECURE", false),
+		},
 	}
 }
 

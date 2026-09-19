@@ -21,9 +21,16 @@ button, input, select, textarea { font: inherit; }
 .app-menu { padding: 9px 8px; border-inline-end: 0 !important; font-weight: 560; }
 .app-menu .ant-menu-item { margin: 2px 0; width: 100%; }
 .app-menu .ant-menu-item-selected { color: #2768e8; background: #edf3ff; }
-.sidebar-foot { position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 7px; color: #758197; font-size: 11px; white-space: nowrap; }
+.sidebar-foot { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; color: #758197; font-size: 11px; }
+.sidebar-user { display: flex; align-items: center; gap: 7px; padding: 3px 5px; border-radius: 6px; background: #f4f7ff; }
+.user-avatar { display: grid; place-items: center; flex: 0 0 20px; width: 20px; height: 20px; border-radius: 50%; background: #2f6fed; color: #fff; font-size: 10px; text-transform: uppercase; }
+.user-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #3b465c; font-size: 11px; }
+.sidebar-health { display: flex; align-items: center; gap: 7px; padding-left: 6px; white-space: nowrap; }
 .ant-layout-sider-collapsed .brand { padding-inline: 15px; }
-.ant-layout-sider-collapsed .brand-copy, .ant-layout-sider-collapsed .sidebar-foot > span:last-child { display: none; }
+.ant-layout-sider-collapsed .brand-copy, .ant-layout-sider-collapsed .user-name, .ant-layout-sider-collapsed .sidebar-health > span:last-child { display: none; }
+.ant-layout-sider-collapsed .sidebar-foot { left: 8px; right: 8px; }
+.ant-layout-sider-collapsed .sidebar-user { justify-content: center; }
+.ant-layout-sider-collapsed .sidebar-health { justify-content: center; padding-left: 0; }
 .health-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #21ad68; box-shadow: 0 0 0 2px rgba(33, 173, 104, .1); }
 .health-dot--error { background: #dc3948; box-shadow: 0 0 0 2px rgba(220, 57, 72, .1); }
 
@@ -103,6 +110,14 @@ button, input, select, textarea { font: inherit; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
+.boot-screen { height: 100vh; display: grid; place-items: center; background: #f6f8fb; }
+.login-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f6f8fb; }
+.login-card { width: 348px; padding: 26px 26px 22px; border: 1px solid #e3e8ef; border-radius: 8px; background: #fff; box-shadow: 0 14px 34px rgba(25, 43, 75, .07); }
+.login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 13px; }
+.login-hint { margin: 0 0 16px; color: #7a8699; font-size: 12px; line-height: 1.6; }
+.login-card .ant-form-item { margin-bottom: 14px; }
+.login-card .ant-form-item-label > label { color: #516079; font-size: 12px; }
+
 [data-theme="dark"] { color: #e5eaf3; background: #111827; }
 [data-theme="dark"] .app-sidebar, [data-theme="dark"] .system-bar { border-color: #303a4b; background: #171f2c !important; }
 [data-theme="dark"] .app-main, [data-theme="dark"] .app-content { background: #111827; }
@@ -112,5 +127,11 @@ button, input, select, textarea { font: inherit; }
 [data-theme="dark"] .project-icon { background: #1b315f; }
 [data-theme="dark"] .settings-page form, [data-theme="dark"] .reclaim-summary { border-color: #303a4b; background: #171f2c; }
 [data-theme="dark"] .reclaim-summary strong, [data-theme="dark"] .settings-section h2 { color: #e2e8f2; }
+[data-theme="dark"] .boot-screen, [data-theme="dark"] .login-page { background: #111827; }
+[data-theme="dark"] .login-card { border-color: #303a4b; background: #171f2c; box-shadow: none; }
+[data-theme="dark"] .login-hint { color: #9ba8bb; }
+[data-theme="dark"] .login-card .ant-form-item-label > label { color: #9ba8bb; }
+[data-theme="dark"] .sidebar-user { background: #1b315f; }
+[data-theme="dark"] .user-name { color: #cdd7e6; }
 [data-density="comfortable"] .dense-table .ant-table-thead > tr > th { height: 42px; padding-block: 10px !important; }
 [data-density="comfortable"] .dense-table .ant-table-tbody > tr > td { height: 48px; padding-block: 9px !important; }

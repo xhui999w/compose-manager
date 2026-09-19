@@ -22,8 +22,9 @@ Docker API   Compose CLI   guarded filesystem
 compose-manager/
 ├── backend/
 │   ├── cmd/server/             # 进程入口
-│   ├── internal/api/           # 路由、请求/响应、错误映射
+│   ├── internal/api/           # 路由、请求/响应、错误映射、鉴权中间件
 │   ├── internal/app/           # 用例编排和 DTO
+│   ├── internal/auth/          # 口令校验、会话签名、失败限流
 │   ├── internal/compose/       # 发现、路径守卫、CLI、编辑/备份
 │   ├── internal/docker/        # Engine API adapter、统计、镜像引用
 │   ├── internal/store/         # SQLite、迁移、设置/审计/历史
@@ -157,8 +158,17 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 - `GET /images`, `POST /images/{id}/delete`, `POST /images/check-updates`
 - `GET /updates`, `POST /updates/run`
 - `GET|PUT /settings`, `GET|PUT /access-links`
+- `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`
 
-写接口预留 CSRF/认证中间件位置；部署在反向代理之后时只信任显式配置的代理头。
+### 12.1 鉴权中间件
+
+`internal/api` 的 `authGuard` 包在整个 mux 外层，对 `/api/*` 统一校验会话 Cookie：
+
+- 豁免：`/api/v1/health`（容器健康检查）与三个 `/api/v1/auth/*` 接口。
+- 非 `/api/` 前缀（前端静态资源）匿名可达——否则浏览器取不到 JS，登录页无法渲染。
+- 会话是 `internal/auth` 签发的 HMAC-SHA256 无状态 Cookie（HttpOnly、SameSite=Lax），服务端不存会话表；密钥来自 `CM_SESSION_SECRET` 或 `/data/.session-secret`。代价是无法单独吊销某个会话，更换密钥即吊销全部。
+- 登录失败按 TCP 对端地址限流，**不信任** `X-Forwarded-For`：反向代理后所有请求共用一个限流桶，宁可误伤也不让限流形同虚设。
+- 未配置口令时 `authGuard` 直接放行，保持既有部署兼容。
 
 ## 13. 风险清单与缓解
 
@@ -173,5 +183,5 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 | 健康检查定义不统一 | 更新成功误判 | 区分 running/healthy/unknown，允许超时策略 |
 | 镜像 layer 共享 | 可释放空间估算不准 | 标注预计值，删除后用 Engine 结果确认 |
 | 单容器包含 Docker CLI 增大镜像 | 轻量性下降 | 多阶段构建、最小基础镜像、固定依赖版本 |
-| MVP 无内建认证 | 公网暴露风险 | 默认仅监听/部署于可信网，文档强制反向代理认证；公网直连不受支持 |
+| MVP 无内建认证（已实现单用户登录，见 12.1） | 公网暴露风险 | 默认仅监听/部署于可信网，应用内登录 + 文档强制建议反向代理加固；公网直连不受支持 |
 
