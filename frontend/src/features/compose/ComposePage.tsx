@@ -3,7 +3,7 @@ import {
   CaretRightOutlined, EditOutlined, FileTextOutlined, LinkOutlined, MoreOutlined, PauseOutlined,
   PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Dropdown, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { Alert, Button, Dropdown, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { api } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
@@ -52,8 +52,6 @@ export function ComposePage() {
     { title: '内存', dataIndex: 'memoryBytes', width: 76, sorter: (a, b) => a.memoryBytes - b.memoryBytes, render: formatBytes },
     { title: '镜像更新', dataIndex: 'updateStatus', width: 86, render: (value, project) => value === 'available' ? <Tag color="gold">有更新 {project.updateCount ? `(${project.updateCount})` : ''}</Tag> : value === 'current' ? <Tag>无更新</Tag> : <Tag>未检查</Tag> },
     { title: '更新策略', dataIndex: 'updatePolicy', width: 84, render: (value) => policyLabels[value] ?? value },
-    { title: '内网访问', dataIndex: 'internalUrl', width: 130, ellipsis: true, render: (value) => value ? <a href={value} target="_blank" rel="noreferrer">{value}</a> : <Typography.Text type="secondary">—</Typography.Text> },
-    { title: '外网访问', dataIndex: 'externalUrl', width: 110, ellipsis: true, render: (value) => value ? <a href={value} target="_blank" rel="noreferrer">{value}</a> : <Typography.Text type="secondary">—</Typography.Text> },
     {
       title: '操作', key: 'actions', fixed: 'right', width: 250,
       render: (_, project) => (
@@ -96,7 +94,7 @@ export function ComposePage() {
         columns={columns}
         dataSource={filtered}
         loading={loading}
-        scroll={{ x: 1140 }}
+        scroll={{ x: 900 }}
         pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [15, 20, 25, 50], showTotal: (total) => `共 ${total} 项` }}
         expandable={{ expandedRowRender: (project) => <ContainerSubtable containers={project.containers} />, rowExpandable: (project) => project.containers.length > 0, columnWidth: 32 }}
       />
