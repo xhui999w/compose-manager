@@ -12,6 +12,7 @@ import (
 
 	"github.com/compose-manager/compose-manager/backend/internal/api"
 	"github.com/compose-manager/compose-manager/backend/internal/app"
+	"github.com/compose-manager/compose-manager/backend/internal/auth"
 	"github.com/compose-manager/compose-manager/backend/internal/compose"
 	"github.com/compose-manager/compose-manager/backend/internal/config"
 	dockerapi "github.com/compose-manager/compose-manager/backend/internal/docker"
@@ -32,6 +33,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer database.Close()
+	authManager, err := auth.New(context.Background(), database, auth.Config{DataDir: cfg.DataDir, SessionTTL: cfg.SessionTTL, SecureCookie: cfg.SecureCookie, SetupToken: cfg.SetupToken}, logger)
+	if err != nil {
+		logger.Error("configure authentication", "error", err)
+		os.Exit(1)
+	}
 	if persisted, settingsErr := database.Settings(context.Background()); settingsErr == nil {
 		cfg = config.ApplySettings(cfg, persisted)
 	} else {
@@ -50,7 +56,7 @@ func main() {
 	runner := compose.NewRunner(cfg.OperationTimeout)
 	editor := compose.NewEditor(guard, runner, database, cfg.BackupDir)
 	service := app.New(cfg, engine, guard, runner, editor, database)
-	server := &http.Server{Addr: cfg.ListenAddr, Handler: api.New(service, logger, webassets.Handler()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	server := &http.Server{Addr: cfg.ListenAddr, Handler: api.New(service, authManager, logger, webassets.Handler()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 3 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 
 	go func() {
 		logger.Info("Compose Manager listening", "address", cfg.ListenAddr, "demo", cfg.DemoMode)

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, SettingOutlined } from '@ant-design/icons'
-import { Layout, Menu } from 'antd'
+import { ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
+import { Button, Layout, Menu, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { SystemStatusBar } from './SystemStatusBar'
 
@@ -14,7 +14,7 @@ const items: MenuProps['items'] = [
   { key: 'settings', icon: <SettingOutlined />, label: '设置' },
 ]
 
-export function AppShell({ page, onPageChange, children }: { page: PageKey; onPageChange: (page: PageKey) => void; children: ReactNode }) {
+export function AppShell({ page, onPageChange, username, onLogout, children }: { page: PageKey; onPageChange: (page: PageKey) => void; username: string; onLogout: () => void; children: ReactNode }) {
   return (
     <Layout className="app-shell">
       <Layout.Sider className="app-sidebar" width={196} theme="light" breakpoint="xl" collapsedWidth={60}>
@@ -23,7 +23,10 @@ export function AppShell({ page, onPageChange, children }: { page: PageKey; onPa
           <div className="brand-copy"><strong>Compose Manager</strong><span>更简单的 Compose 管理</span></div>
         </div>
         <Menu className="app-menu" mode="inline" selectedKeys={[page]} items={items} onClick={({ key }) => onPageChange(key as PageKey)} />
-        <div className="sidebar-foot"><span className="health-dot" /><span>Docker Engine</span></div>
+        <div className="sidebar-foot">
+          <div className="sidebar-engine"><span className="health-dot" /><span>Docker Engine</span></div>
+          <div className="sidebar-user"><UserOutlined /><span title={username}>{username}</span><Tooltip title="退出登录"><Button aria-label="退出登录" type="text" size="small" icon={<LogoutOutlined />} onClick={onLogout} /></Tooltip></div>
+        </div>
       </Layout.Sider>
       <Layout className="app-main">
         <SystemStatusBar />

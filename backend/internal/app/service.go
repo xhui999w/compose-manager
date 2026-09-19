@@ -45,7 +45,7 @@ func (s *Service) Health(ctx context.Context) map[string]any {
 		status = "degraded"
 		dockerStatus = err.Error()
 	}
-	return map[string]any{"status": status, "docker": dockerStatus, "time": time.Now().UTC(), "version": "0.1.0"}
+	return map[string]any{"status": status, "docker": dockerStatus, "time": time.Now().UTC(), "version": "0.2.0"}
 }
 
 func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {

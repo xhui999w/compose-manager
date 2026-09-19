@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,21 @@ import (
 )
 
 type Store struct{ db *sql.DB }
+
+var ErrAlreadyInitialized = errors.New("administrator account already exists")
+
+type User struct {
+	ID           int64
+	Username     string
+	PasswordHash string
+}
+
+type Session struct {
+	UserID    int64
+	Username  string
+	CSRFToken string
+	ExpiresAt time.Time
+}
 
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -28,6 +44,10 @@ func Open(path string) (*Store, error) {
 	if err := store.migrate(); err != nil {
 		db.Close()
 		return nil, err
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("restrict database permissions: %w", err)
 	}
 	return store, nil
 }
@@ -73,7 +93,26 @@ CREATE TABLE IF NOT EXISTS audit_events (
   result TEXT NOT NULL,
   detail TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
-);`
+);
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  csrf_token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+`
 	_, err := s.db.Exec(schema)
 	return err
 }
@@ -203,4 +242,82 @@ func (s *Store) Audit(ctx context.Context, action, targetType, targetID, result,
 		return fmt.Errorf("write audit event: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) HasUsers(ctx context.Context) (bool, error) {
+	var count int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *Store) CreateInitialUser(ctx context.Context, username, passwordHash string) (User, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback()
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		return User{}, err
+	}
+	if count != 0 {
+		return User{}, ErrAlreadyInitialized
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := tx.ExecContext(ctx, `INSERT INTO users(username,password_hash,created_at,updated_at) VALUES(?,?,?,?)`, username, passwordHash, now, now)
+	if err != nil {
+		return User{}, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return User{}, err
+	}
+	return User{ID: id, Username: username, PasswordHash: passwordHash}, nil
+}
+
+func (s *Store) UserByUsername(ctx context.Context, username string) (User, error) {
+	var user User
+	err := s.db.QueryRowContext(ctx, `SELECT id, username, password_hash FROM users WHERE username = ? COLLATE NOCASE`, username).Scan(&user.ID, &user.Username, &user.PasswordHash)
+	return user, err
+}
+
+func (s *Store) CreateSession(ctx context.Context, userID int64, tokenHash, csrfToken string, expiresAt time.Time) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)`, userID, tokenHash, csrfToken, expiresAt.UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) SessionByTokenHash(ctx context.Context, tokenHash string) (Session, error) {
+	var session Session
+	var expires string
+	err := s.db.QueryRowContext(ctx, `SELECT sessions.user_id, users.username, sessions.csrf_token, sessions.expires_at
+		FROM sessions JOIN users ON users.id = sessions.user_id
+		WHERE sessions.token_hash = ? AND sessions.expires_at > ?`, tokenHash, time.Now().UTC().Format(time.RFC3339Nano)).Scan(&session.UserID, &session.Username, &session.CSRFToken, &expires)
+	if err != nil {
+		return Session{}, err
+	}
+	session.ExpiresAt, err = time.Parse(time.RFC3339Nano, expires)
+	if err != nil {
+		return Session{}, err
+	}
+	return session, nil
+}
+
+func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, tokenHash)
+	return err
 }

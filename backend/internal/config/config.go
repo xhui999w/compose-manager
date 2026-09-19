@@ -18,6 +18,9 @@ type Config struct {
 	DefaultScheme    string
 	DemoMode         bool
 	OperationTimeout time.Duration
+	SessionTTL       time.Duration
+	SecureCookie     bool
+	SetupToken       string
 }
 
 func Load() Config {
@@ -32,6 +35,9 @@ func Load() Config {
 		DefaultScheme:    env("CM_DEFAULT_SCHEME", "http"),
 		DemoMode:         envBool("CM_DEMO_MODE", false),
 		OperationTimeout: envDuration("CM_OPERATION_TIMEOUT", 2*time.Minute),
+		SessionTTL:       envDuration("CM_SESSION_TTL", 7*24*time.Hour),
+		SecureCookie:     envBool("CM_SECURE_COOKIE", false),
+		SetupToken:       strings.TrimSpace(os.Getenv("CM_SETUP_TOKEN")),
 	}
 }
 

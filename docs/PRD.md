@@ -105,7 +105,11 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 - 写文件采用临时文件、同步、备份和原子替换；校验失败只删除临时文件。
 - 更新、保存、恢复、删除和启停写入审计事件。
 - API 错误不回显敏感环境变量或 registry 凭证。
-- 建议部署层提供认证、TLS 和来源限制；MVP 不把“无认证暴露公网”作为支持场景。
+- 首次启动必须使用一次性初始化密钥创建唯一管理员账号；初始化完成后不再开放账号创建。
+- 密码使用 Argon2id 独立随机盐哈希；不得保存明文密码或可逆密文。
+- 登录使用服务端会话和 HttpOnly、SameSite=Strict Cookie；所有写 API 校验与会话绑定的 CSRF 令牌。
+- 登录失败按来源与用户名限速；登录、初始化和退出写入审计记录，日志不得包含密码或会话令牌。
+- 建议部署层继续提供 TLS 和来源限制；MVP 不把“无 TLS 暴露公网”作为支持场景。
 
 ## 6. MVP 与后续边界
 
@@ -118,6 +122,7 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 - latest/固定版本/仅检查策略与手动更新流水线。
 - 内网快捷地址、自定义外网地址、Provider 接口。
 - SQLite 配置与审计记录、单容器部署。
+- 单管理员首次初始化、登录、退出、会话过期与 CSRF 防护。
 
 ### 后续
 
@@ -125,7 +130,7 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 - UGREENlink、Lucky、Cloudflare Provider 实现。
 - Registry 凭据管理与更完整的语义版本建议。
 - SSE/WebSocket 实时日志和任务进度。
-- 可选的本地认证与只读用户。
+- 密码修改/恢复、只读用户和可选双因素认证。
 
 ### 明确不做
 
@@ -138,4 +143,3 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 - 所有长操作具有超时与互斥锁；同一项目不并发执行更新/应用。
 - SQLite 启用 WAL、busy timeout 和迁移版本。
 - 支持 amd64/arm64 镜像构建。
-

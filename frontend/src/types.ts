@@ -81,3 +81,9 @@ export type UpdateRecord = {
 export type ComposeFile = { path: string; content: string; sha256: string }
 export type ComposeVersion = { id: number; projectKey: string; filePath: string; sha256: string; createdAt: string }
 
+export type AuthStatus = {
+  setupRequired: boolean
+  authenticated: boolean
+  username?: string
+  csrfToken?: string
+}

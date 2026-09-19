@@ -67,7 +67,7 @@ export function ComposeEditorDrawer({ project, open, onClose, onSaved }: { proje
   return (
     <Drawer className="editor-drawer" width="min(1120px, 94vw)" open={open} onClose={onClose} destroyOnHidden title={<div><strong>编辑 {project?.name}</strong><Typography.Text type="secondary" className="drawer-path">{file?.path}</Typography.Text></div>} extra={<Space><Button icon={<CheckCircleOutlined />} loading={validating} onClick={() => void validate()}>校验并查看 Diff</Button><Button icon={<SaveOutlined />} disabled={!diff || diff === '没有变更。'} loading={saving} onClick={() => void save(false)}>仅保存</Button><Popconfirm title="保存并应用？" description="保存前会创建备份，随后执行 docker compose up -d。" onConfirm={() => void save(true)}><Button type="primary" icon={<SaveOutlined />} disabled={!diff || diff === '没有变更。'} loading={saving}>保存并应用</Button></Popconfirm></Space>}>
       {contextHolder}
-      {error ? <Alert className="inline-alert" showIcon type="error" message="操作未执行" description={error} /> : null}
+      {error ? <Alert className="inline-alert" showIcon type="error" title="操作未执行" description={error} /> : null}
       {loading ? <Skeleton active /> : (
         <Tabs defaultActiveKey="source" items={[
           { key: 'source', label: '源码', children: <Suspense fallback={<Skeleton active />}><MonacoEditor value={content} onChange={(value) => { setContent(value); setDiff('') }} /></Suspense> },

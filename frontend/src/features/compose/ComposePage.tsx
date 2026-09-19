@@ -88,7 +88,7 @@ export function ComposePage() {
         </Space>
         <Button icon={<ReloadOutlined />} onClick={() => void refresh()} loading={loading}>刷新</Button>
       </div>
-      {error ? <Alert className="inline-alert" type="warning" showIcon message="无法读取 Docker 数据" description={error.message} action={<Button size="small" onClick={() => void refresh()}>重试</Button>} /> : null}
+      {error ? <Alert className="inline-alert" type="warning" showIcon title="无法读取 Docker 数据" description={error.message} action={<Button size="small" onClick={() => void refresh()}>重试</Button>} /> : null}
       <Table<Project>
         className="dense-table project-table"
         rowKey="key"

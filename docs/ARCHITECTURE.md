@@ -148,7 +148,9 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 
 所有接口位于 `/api/v1`：
 
-- `GET /health`, `GET /overview`
+- `GET /health`
+- `GET /auth/status`, `POST /auth/setup`, `POST /auth/login`, `POST /auth/logout`
+- `GET /overview`
 - `GET /compose/projects`, `POST /compose/projects/{key}/actions`
 - `GET /compose/projects/{key}/logs`
 - `GET|POST /compose/projects/{key}/file`, `POST .../validate`, `POST .../apply`
@@ -158,7 +160,9 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 - `GET /updates`, `POST /updates/run`
 - `GET|PUT /settings`, `GET|PUT /access-links`
 
-写接口预留 CSRF/认证中间件位置；部署在反向代理之后时只信任显式配置的代理头。
+除 `/health` 和首次初始化/登录接口外，全部 API 由认证中间件保护。服务端仅在 SQLite 中保存会话令牌的 SHA-256 摘要；随机会话令牌通过 HttpOnly、SameSite=Strict Cookie 下发。写接口额外校验保存在会话记录中的 CSRF 令牌。HTTPS 部署通过 `CM_SECURE_COOKIE=true` 启用 Secure Cookie、`__Host-` Cookie 名和 HSTS；不根据未经信任的代理头自动判断 HTTPS。
+
+管理员密码以 Argon2id PHC 格式保存，参数为 64 MiB、3 次迭代、并行度 2，每个密码使用独立随机盐。首次启动在 `/data/setup-token` 生成 192-bit 一次性初始化密钥并写入容器日志；创建唯一管理员后删除该文件并永久关闭初始化入口。登录失败使用单进程内按来源 IP + 用户名的时间窗限速。
 
 ## 13. 风险清单与缓解
 
@@ -173,5 +177,5 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 | 健康检查定义不统一 | 更新成功误判 | 区分 running/healthy/unknown，允许超时策略 |
 | 镜像 layer 共享 | 可释放空间估算不准 | 标注预计值，删除后用 Engine 结果确认 |
 | 单容器包含 Docker CLI 增大镜像 | 轻量性下降 | 多阶段构建、最小基础镜像、固定依赖版本 |
-| MVP 无内建认证 | 公网暴露风险 | 默认仅监听/部署于可信网，文档强制反向代理认证；公网直连不受支持 |
-
+| 管理员凭据或会话泄露 | Docker 主机高权限被接管 | Argon2id、HttpOnly/Strict Cookie、会话摘要、CSRF、限速、CSP、HTTPS 与来源限制 |
+| 首次初始化被抢占 | 攻击者先创建管理员 | 192-bit 一次性初始化密钥只保存在数据卷和容器日志，创建后立即失效 |

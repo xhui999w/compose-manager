@@ -54,6 +54,7 @@ CM_COMPOSE_PATH=/volume1/docker
 CM_DATA_PATH=./data
 CM_BACKUP_PATH=./backups
 DOCKER_GID=0
+CM_SECURE_COOKIE=false
 ```
 
 然后启动：
@@ -71,6 +72,20 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u <GitHub 用户名> --password-stdin
 
 公开镜像无需登录。正式版本可创建 `v1.0.0` 形式的 Git 标签，发布流程会额外生成对应版本镜像标签。
 
+## 首次创建管理员账号
+
+Compose Manager 默认保护除健康检查和认证以外的全部 API。首次启动后先查看一次性初始化密钥：
+
+```bash
+docker logs compose-manager 2>&1 | grep setupToken
+```
+
+打开面板，输入该密钥并创建管理员用户名和密码。密码要求 12–128 个字符。初始化成功后密钥立即失效，`/data/setup-token` 会被删除；后续进入面板必须登录。
+
+密码使用 Argon2id 加随机盐保存，浏览器会话使用 HttpOnly、SameSite=Strict Cookie，写操作还必须提供与会话绑定的 CSRF 令牌。会话令牌不会写入浏览器本地存储。
+
+若通过 HTTPS 反向代理访问，请设置 `CM_SECURE_COOKIE=true`；纯 HTTP 局域网部署保持 `false`，否则浏览器不会发送 Secure Cookie。不要把未启用 HTTPS 的管理面板直接暴露到公网。
+
 默认挂载：
 
 - `/var/run/docker.sock`（只由后端访问）
@@ -78,7 +93,7 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u <GitHub 用户名> --password-stdin
 - `/backups`（Compose 文件备份）
 - `/compose`（待扫描 Compose 目录，默认只读；若启用网页编辑需按需改成读写）
 
-Docker Socket 等同宿主机高权限入口。仅在可信局域网部署，并在反向代理处启用认证；MVP 不提供多租户或企业 RBAC。
+Docker Socket 等同宿主机高权限入口。即使已有内建登录，也应仅在可信局域网部署；需要公网访问时必须使用 HTTPS、来源限制和额外的反向代理防护。MVP 不提供多租户或企业 RBAC。
 
 若容器内提示无权访问 Docker Socket，请将宿主机 Socket 的组 ID 传给 `DOCKER_GID`（例如 `stat -c '%g' /var/run/docker.sock` 的结果）后重建容器。
 
@@ -94,6 +109,9 @@ Docker Socket 等同宿主机高权限入口。仅在可信局域网部署，并
 | `CM_NAS_IP` | 自动推断 | 内网快捷访问主机 |
 | `CM_DEFAULT_SCHEME` | `http` | 快捷访问默认协议 |
 | `CM_DEMO_MODE` | `false` | 使用只读演示数据，便于界面预览 |
+| `CM_SESSION_TTL` | `168h` | 登录会话有效期 |
+| `CM_SECURE_COOKIE` | `false` | HTTPS 部署时设为 `true`，启用 Secure Cookie 与 HSTS |
+| `CM_SETUP_TOKEN` | 自动生成 | 可选的首次初始化密钥；未设置时从容器日志读取 |
 
 ## 文档
 

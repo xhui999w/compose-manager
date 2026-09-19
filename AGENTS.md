@@ -35,6 +35,9 @@ Before marking a task complete:
 - Recompute image references immediately before deletion.
 - Write edits to a sibling temporary file, validate, back up, then atomically replace.
 - Do not log secrets, `.env` values, registry credentials, or full request bodies containing YAML.
+- Keep every management API behind the authentication middleware; additions to the public auth/health allowlist require explicit security review.
+- Store passwords only through the Argon2id helper and sessions only as token digests; never expose session cookies to frontend JavaScript.
+- Require the session-bound CSRF token on every non-safe authenticated request.
 
 ## Style
 
@@ -43,4 +46,3 @@ Before marking a task complete:
 - Return structured API errors with stable codes; keep raw subprocess output server-side where it may contain secrets.
 - Keep React pages split by feature; `App` is composition and routing only.
 - User-facing UI is Chinese-first and accessible by keyboard.
-
