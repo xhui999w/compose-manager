@@ -44,7 +44,7 @@ export function ComposePage() {
 
   const columns: ColumnsType<Project> = [
     { title: '项目名称', dataIndex: 'name', width: 145, sorter: (a, b) => a.name.localeCompare(b.name), render: (name, project) => <div className="project-name"><span className="project-icon"><CaretRightOutlined /></span><div><strong>{name}</strong><small>{project.discoverySource}</small></div></div> },
-    { title: '运行状态', dataIndex: 'status', width: 76, align: 'center', sorter: (a, b) => Number(a.status === 'running') - Number(b.status === 'running'), sortDirections: ['ascend', 'descend'], render: (value) => <StateBadge state={value} /> },
+    { title: '运行状态', dataIndex: 'status', width: 76, align: 'center', sorter: (a, b) => Number(a.status === 'running') - Number(b.status === 'running'), defaultSortOrder: 'ascend', sortDirections: ['ascend', 'descend', 'ascend'], render: (value) => <StateBadge state={value} /> },
     { title: '容器', width: 58, align: 'center', render: (_, project) => <strong>{project.healthy}/{project.total}</strong> },
     { title: 'CPU', dataIndex: 'cpuPercent', width: 62, sorter: (a, b) => a.cpuPercent - b.cpuPercent, render: formatPercent },
     { title: '内存', dataIndex: 'memoryBytes', width: 76, sorter: (a, b) => a.memoryBytes - b.memoryBytes, render: formatBytes },
