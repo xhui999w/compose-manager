@@ -49,7 +49,7 @@ export function ContainersPage() {
 
   const columns: ColumnsType<Container> = [
     { title: '容器名称', dataIndex: 'name', width: 190, fixed: 'left', sorter: (a, b) => a.name.localeCompare(b.name), render: (value) => <strong>{value}</strong> },
-    { title: '状态', dataIndex: 'state', width: 92, render: (value) => <StateBadge state={value} /> },
+    { title: '状态', dataIndex: 'state', width: 68, align: 'center', render: (value) => <StateBadge state={value} /> },
     { title: 'Compose 项目', dataIndex: 'project', width: 150, render: (value) => value ? <Tag color="blue">{value}</Tag> : <Tag>非 Compose</Tag> },
     { title: 'CPU', dataIndex: 'cpuPercent', width: 70, sorter: (a, b) => a.cpuPercent - b.cpuPercent, render: formatPercent },
     { title: '内存', dataIndex: 'memoryBytes', width: 88, sorter: (a, b) => a.memoryBytes - b.memoryBytes, render: formatBytes },

@@ -56,7 +56,8 @@ button, input, select, textarea { font: inherit; }
 .dense-table .ant-table-row:hover > td { background: #f7faff !important; }
 .dense-table .ant-table-cell-fix-right { box-shadow: -5px 0 9px rgba(25, 43, 75, .03); }
 .dense-table .ant-pagination { margin: 12px 2px 0; font-size: 11px; }
-.dense-table .ant-badge-status-text { margin-inline-start: 6px; font-size: 12px; }
+.state-dot { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; min-height: 18px; vertical-align: middle; cursor: help; }
+.state-dot .ant-badge-status-dot { width: 12px; height: 12px; box-shadow: 0 0 0 3px rgba(23, 32, 51, .06); }
 .dense-table .ant-tag { margin-inline-end: 0; padding-inline: 6px; font-size: 11px; line-height: 20px; border: 0; }
 
 .project-name { display: flex; align-items: center; gap: 8px; min-width: 0; }

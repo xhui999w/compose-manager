@@ -44,7 +44,7 @@ export function ComposePage() {
 
   const columns: ColumnsType<Project> = [
     { title: '项目名称', dataIndex: 'name', width: 145, sorter: (a, b) => a.name.localeCompare(b.name), render: (name, project) => <div className="project-name"><span className="project-icon"><CaretRightOutlined /></span><div><strong>{name}</strong><small>{project.discoverySource}</small></div></div> },
-    { title: '运行状态', dataIndex: 'status', width: 92, filters: [{ text: '运行中', value: 'running' }, { text: '已停止', value: 'stopped' }], onFilter: (value, record) => record.status === value, render: (value) => <StateBadge state={value} /> },
+    { title: '运行状态', dataIndex: 'status', width: 76, align: 'center', filters: [{ text: '运行中', value: 'running' }, { text: '异常', value: 'degraded' }, { text: '已停止', value: 'stopped' }], onFilter: (value, record) => record.status === value, render: (value) => <StateBadge state={value} /> },
     { title: '容器', width: 58, align: 'center', render: (_, project) => <strong>{project.healthy}/{project.total}</strong> },
     { title: 'CPU', dataIndex: 'cpuPercent', width: 62, sorter: (a, b) => a.cpuPercent - b.cpuPercent, render: formatPercent },
     { title: '内存', dataIndex: 'memoryBytes', width: 76, sorter: (a, b) => a.memoryBytes - b.memoryBytes, render: formatBytes },
@@ -104,7 +104,7 @@ export function ComposePage() {
 function ContainerSubtable({ containers }: { containers: Container[] }) {
   const columns: ColumnsType<Container> = [
     { title: '容器名称', dataIndex: 'name', width: 180, render: (value) => <strong>{value}</strong> },
-    { title: '状态', dataIndex: 'state', width: 100, render: (value) => <StateBadge state={value} /> },
+    { title: '状态', dataIndex: 'state', width: 68, align: 'center', render: (value) => <StateBadge state={value} /> },
     { title: '镜像', dataIndex: 'image', ellipsis: true },
     { title: 'CPU', dataIndex: 'cpuPercent', width: 90, render: formatPercent },
     { title: '内存', dataIndex: 'memoryBytes', width: 100, render: formatBytes },
