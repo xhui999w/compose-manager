@@ -1,4 +1,4 @@
-import { Badge, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 
 const labels: Record<string, string> = {
   running: '运行中',
@@ -9,13 +9,13 @@ const labels: Record<string, string> = {
   created: '已停止',
 }
 
-const statuses: Record<string, 'success' | 'error' | 'warning'> = {
-  running: 'success',
-  stopped: 'error',
+const tones: Record<string, 'running' | 'stopped' | 'warning'> = {
+  running: 'running',
+  stopped: 'stopped',
   degraded: 'warning',
-  'not-running': 'error',
-  exited: 'error',
-  created: 'error',
+  'not-running': 'stopped',
+  exited: 'stopped',
+  created: 'stopped',
 }
 
 export function StateBadge({ state }: { state: string }) {
@@ -23,7 +23,7 @@ export function StateBadge({ state }: { state: string }) {
   return (
     <Tooltip title={label}>
       <span className="state-dot" role="img" aria-label={label}>
-        <Badge status={statuses[state] ?? 'warning'} />
+        <span className={`state-dot__circle state-dot__circle--${tones[state] ?? 'warning'}`} />
       </span>
     </Tooltip>
   )
