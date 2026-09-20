@@ -54,7 +54,6 @@ func (s *Server) routes(static http.Handler) {
 	s.mux.HandleFunc("GET /api/v1/containers/{id}/inspect", s.inspectContainer)
 	s.mux.HandleFunc("GET /api/v1/containers/{id}/logs", s.containerLogs)
 	s.mux.HandleFunc("GET /api/v1/images", s.images)
-	s.mux.HandleFunc("POST /api/v1/images/check-updates", s.checkImageUpdates)
 	s.mux.HandleFunc("DELETE /api/v1/images/{id}", s.deleteImage)
 	s.mux.HandleFunc("GET /api/v1/updates", s.updates)
 	s.mux.HandleFunc("POST /api/v1/updates/run", s.runUpdate)
@@ -343,15 +342,6 @@ func (s *Server) images(w http.ResponseWriter, r *http.Request) {
 	result, err := s.service.Images(r.Context())
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "IMAGES_FAILED", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
-}
-
-func (s *Server) checkImageUpdates(w http.ResponseWriter, r *http.Request) {
-	result, err := s.service.CheckImageUpdates(r.Context())
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "UPDATE_CHECK_FAILED", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})

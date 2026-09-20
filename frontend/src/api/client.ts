@@ -59,7 +59,6 @@ export const api = {
   inspectContainer: async (id: string) => (await request<Envelope<Record<string, unknown>>>(`/containers/${encodeURIComponent(id)}/inspect`)).data,
   containerLogs: (id: string) => request<{ logs: string }>(`/containers/${encodeURIComponent(id)}/logs?tail=500`),
   images: async () => (await request<Envelope<ImageReference[]>>('/images')).data,
-  checkImageUpdates: async () => (await request<Envelope<ImageReference[]>>('/images/check-updates', { method: 'POST' })).data,
   deleteImage: (id: string) => request(`/images/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' }),
   updates: async () => (await request<Envelope<UpdateRecord[]>>('/updates')).data,
   runUpdate: (project: string, service = '') => request('/updates/run', { method: 'POST', body: JSON.stringify({ project, service }) }),

@@ -9,21 +9,21 @@ import (
 
 func demoProjects(nasIP string) []model.Project {
 	type seed struct {
-		name, status, update, policy string
-		total                        int
-		cpu                          float64
-		memory                       uint64
-		port                         uint16
+		name, status, update string
+		total                int
+		cpu                  float64
+		memory               uint64
+		port                 uint16
 	}
 	seeds := []seed{
-		{"media-stack", "running", "available", "latest", 5, 2.1, 512 << 20, 8096},
-		{"home-assistant", "running", "current", "latest", 3, 1.6, 728 << 20, 8123},
-		{"immich", "running", "available", "latest", 4, 3.8, 1200 << 20, 2283},
-		{"postgres-prod", "running", "current", "check-only", 1, .6, 256 << 20, 5432},
-		{"uptime-kuma", "running", "current", "latest", 1, .3, 64 << 20, 3001},
-		{"cloudflared", "stopped", "available", "fixed", 1, 0, 0, 0},
-		{"paperless", "running", "current", "fixed", 2, 1.1, 384 << 20, 8000},
-		{"redis-cache", "degraded", "current", "check-only", 1, 0, 0, 6379},
+		{"media-stack", "running", "available", 5, 2.1, 512 << 20, 8096},
+		{"home-assistant", "running", "current", 3, 1.6, 728 << 20, 8123},
+		{"immich", "running", "available", 4, 3.8, 1200 << 20, 2283},
+		{"postgres-prod", "running", "current", 1, .6, 256 << 20, 5432},
+		{"uptime-kuma", "running", "current", 1, .3, 64 << 20, 3001},
+		{"cloudflared", "stopped", "available", 1, 0, 0, 0},
+		{"paperless", "running", "current", 2, 1.1, 384 << 20, 8000},
+		{"redis-cache", "degraded", "current", 1, 0, 0, 6379},
 	}
 	result := make([]model.Project, 0, len(seeds))
 	for _, item := range seeds {
@@ -43,7 +43,7 @@ func demoProjects(nasIP string) []model.Project {
 		if item.port > 0 {
 			url = fmt.Sprintf("http://%s:%d", nasIP, item.port)
 		}
-		result = append(result, model.Project{Key: item.name, Name: item.name, Status: item.status, Healthy: map[bool]int{true: item.total, false: 0}[item.status == "running"], Total: item.total, CPUPercent: item.cpu, MemoryBytes: item.memory, UpdateStatus: item.update, UpdateCount: map[bool]int{true: 1, false: 0}[item.update == "available"], UpdatePolicy: item.policy, InternalURL: url, ConfigFile: "/compose/" + item.name + "/compose.yaml", WorkingDir: "/compose/" + item.name, DiscoverySource: "demo", Editable: true, Containers: containers})
+		result = append(result, model.Project{Key: item.name, Name: item.name, Status: item.status, Healthy: map[bool]int{true: item.total, false: 0}[item.status == "running"], Total: item.total, CPUPercent: item.cpu, MemoryBytes: item.memory, UpdateStatus: item.update, UpdateCount: map[bool]int{true: 1, false: 0}[item.update == "available"], InternalURL: url, ConfigFile: "/compose/" + item.name + "/compose.yaml", WorkingDir: "/compose/" + item.name, DiscoverySource: "demo", Editable: true, Containers: containers})
 	}
 	return result
 }

@@ -65,6 +65,9 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+	backgroundCtx, cancelBackground := context.WithCancel(context.Background())
+	defer cancelBackground()
+	go runAutomaticUpdateChecks(backgroundCtx, service, cfg.UpdateCheckInterval, logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
@@ -73,5 +76,44 @@ func main() {
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("graceful shutdown", "error", err)
+	}
+}
+
+func runAutomaticUpdateChecks(ctx context.Context, service *app.Service, interval time.Duration, logger *slog.Logger) {
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+	check := func() {
+		images, err := service.CheckImageUpdates(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				logger.Warn("automatic image update check failed", "error", err)
+			}
+			return
+		}
+		available, current, unknown := 0, 0, 0
+		for _, image := range images {
+			switch image.UpdateStatus {
+			case "available":
+				available++
+			case "current":
+				current++
+			default:
+				unknown++
+			}
+		}
+		logger.Info("automatic image update check completed", "available", available, "current", current, "unknown", unknown, "nextCheckIn", interval)
+	}
+
+	check()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			check()
+		}
 	}
 }

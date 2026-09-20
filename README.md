@@ -108,6 +108,7 @@ Docker Socket 等同宿主机高权限入口。即使已有内建登录，也应
 | `CM_DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine 地址 |
 | `CM_NAS_IP` | 自动推断 | 内网快捷访问主机 |
 | `CM_DEFAULT_SCHEME` | `http` | 快捷访问默认协议 |
+| `CM_UPDATE_CHECK_INTERVAL` | `24h` | 自动镜像更新检查周期；只检查，不自动升级 |
 | `CM_DEMO_MODE` | `false` | 使用只读演示数据，便于界面预览 |
 | `CM_SESSION_TTL` | `168h` | 登录会话有效期 |
 | `CM_SECURE_COOKIE` | `false` | HTTPS 部署时设为 `true`，启用 Secure Cookie 与 HSTS |
@@ -122,7 +123,7 @@ Docker Socket 等同宿主机高权限入口。即使已有内建登录，也应
 
 ## MVP 边界
 
-MVP 覆盖单机 Docker、Compose 项目发现与操作、源码编辑与恢复、镜像引用与安全删除判断、三类更新策略、访问快捷方式和更新审计。应用商店、Swarm、Kubernetes、SSH/SFTP、文件管理、Nginx/证书/DNS、高级网络/卷管理、多租户和企业 RBAC 明确不在范围内。
+MVP 覆盖单机 Docker、Compose 项目发现与操作、源码编辑与恢复、镜像引用与安全删除判断、每 24 小时自动更新检查、用户确认更新、访问快捷方式和更新审计。应用商店、Swarm、Kubernetes、SSH/SFTP、文件管理、Nginx/证书/DNS、高级网络/卷管理、多租户和企业 RBAC 明确不在范围内。
 
 ## License
 

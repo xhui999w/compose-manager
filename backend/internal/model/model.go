@@ -36,7 +36,6 @@ type Project struct {
 	MemoryBytes     uint64      `json:"memoryBytes"`
 	UpdateStatus    string      `json:"updateStatus"`
 	UpdateCount     int         `json:"updateCount"`
-	UpdatePolicy    string      `json:"updatePolicy"`
 	InternalURL     string      `json:"internalUrl,omitempty"`
 	ExternalURL     string      `json:"externalUrl,omitempty"`
 	ConfigFile      string      `json:"configFile,omitempty"`

@@ -26,7 +26,6 @@ export type Project = {
   memoryBytes: number
   updateStatus: 'available' | 'current' | 'unknown'
   updateCount: number
-  updatePolicy: 'latest' | 'fixed' | 'check-only'
   internalUrl?: string
   externalUrl?: string
   configFile?: string

@@ -59,9 +59,14 @@ func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {
 	}
 	s.sampleStats(ctx, containers)
 	projects := map[string]*model.Project{}
+	projectImages := map[string]map[string]struct{}{}
 	for _, file := range files {
-		project := &model.Project{Key: file.Key, Name: file.Name, Status: "not-running", UpdateStatus: "unknown", UpdatePolicy: "check-only", ConfigFile: file.File, WorkingDir: file.WorkingDir, DiscoverySource: "scan", Editable: true, Containers: []model.Container{}}
+		project := &model.Project{Key: file.Key, Name: file.Name, Status: "not-running", UpdateStatus: "unknown", ConfigFile: file.File, WorkingDir: file.WorkingDir, DiscoverySource: "scan", Editable: true, Containers: []model.Container{}}
 		projects[file.Key] = project
+		projectImages[file.Key] = map[string]struct{}{}
+		for _, image := range file.Images {
+			projectImages[file.Key][canonicalImageRef(image)] = struct{}{}
+		}
 	}
 	for _, container := range containers {
 		key := strings.TrimSpace(container.Project)
@@ -70,7 +75,7 @@ func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {
 		}
 		project := projects[key]
 		if project == nil {
-			project = &model.Project{Key: key, Name: key, Status: "not-running", UpdateStatus: "unknown", UpdatePolicy: "check-only", DiscoverySource: "labels", Containers: []model.Container{}}
+			project = &model.Project{Key: key, Name: key, Status: "not-running", UpdateStatus: "unknown", DiscoverySource: "labels", Containers: []model.Container{}}
 			if configPath := firstConfigPath(container.Labels["com.docker.compose.project.config_files"]); configPath != "" {
 				if resolved, err := s.guard.ResolveComposeFile(configPath); err == nil {
 					project.ConfigFile = resolved
@@ -82,10 +87,16 @@ func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {
 			projects[key] = project
 		}
 		project.Containers = append(project.Containers, container)
+		if projectImages[key] == nil {
+			projectImages[key] = map[string]struct{}{}
+		}
+		projectImages[key][canonicalImageRef(container.Image)] = struct{}{}
 	}
 	result := make([]model.Project, 0, len(projects))
+	updateStatuses := s.updateStatusSnapshot()
 	for _, project := range projects {
 		enrichProject(project, s.config.NASIP, s.config.DefaultScheme)
+		project.UpdateStatus, project.UpdateCount = summarizeProjectUpdates(projectImages[project.Key], updateStatuses)
 		result = append(result, *project)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
@@ -272,7 +283,7 @@ func (s *Service) Images(ctx context.Context) ([]model.ImageReference, error) {
 	for index := range images {
 		image := &images[index]
 		s.updateMu.RLock()
-		if cached, ok := s.updateMap[image.Repository+":"+image.Tag]; ok {
+		if cached, ok := s.updateMap[canonicalImageRef(image.Repository+":"+image.Tag)]; ok {
 			image.UpdateStatus = cached
 		}
 		s.updateMu.RUnlock()
@@ -353,7 +364,9 @@ func (s *Service) CheckImageUpdates(ctx context.Context) ([]model.ImageReference
 			if marker := strings.LastIndex(local, "@"); marker >= 0 {
 				local = local[marker+1:]
 			}
-			if local != "" && local != remote {
+			if local == "" {
+				images[index].UpdateStatus = "unknown"
+			} else if local != remote {
 				images[index].UpdateStatus = "available"
 			} else {
 				images[index].UpdateStatus = "current"
@@ -363,9 +376,21 @@ func (s *Service) CheckImageUpdates(ctx context.Context) ([]model.ImageReference
 	wait.Wait()
 	s.updateMu.Lock()
 	for _, image := range images {
-		s.updateMap[image.Repository+":"+image.Tag] = image.UpdateStatus
+		s.updateMap[canonicalImageRef(image.Repository+":"+image.Tag)] = image.UpdateStatus
 	}
 	s.updateMu.Unlock()
+	available, current, unknown := 0, 0, 0
+	for _, image := range images {
+		switch image.UpdateStatus {
+		case "available":
+			available++
+		case "current":
+			current++
+		default:
+			unknown++
+		}
+	}
+	_ = s.store.Audit(ctx, "image.update-check", "images", "all", "success", fmt.Sprintf("available=%d current=%d unknown=%d", available, current, unknown))
 	return images, nil
 }
 
@@ -483,14 +508,62 @@ func firstConfigPath(value string) string {
 }
 
 func imageRefEqual(a, b string) bool {
-	normalize := func(value string) string {
-		value = strings.TrimSpace(strings.TrimPrefix(value, "docker.io/"))
-		if !strings.Contains(value[strings.LastIndex(value, "/")+1:], ":") {
-			value += ":latest"
-		}
+	return canonicalImageRef(a) == canonicalImageRef(b)
+}
+
+func canonicalImageRef(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "<none>" || strings.Contains(value, "@") {
 		return value
 	}
-	return normalize(a) == normalize(b)
+	parts := strings.Split(value, "/")
+	registry := "docker.io"
+	if len(parts) > 1 && (strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") || parts[0] == "localhost") {
+		registry = strings.ToLower(parts[0])
+		parts = parts[1:]
+	}
+	last := parts[len(parts)-1]
+	tag := "latest"
+	if index := strings.LastIndex(last, ":"); index >= 0 {
+		tag = last[index+1:]
+		parts[len(parts)-1] = last[:index]
+	}
+	if registry == "docker.io" && len(parts) == 1 {
+		parts = append([]string{"library"}, parts...)
+	}
+	return registry + "/" + strings.ToLower(strings.Join(parts, "/")) + ":" + tag
+}
+
+func (s *Service) updateStatusSnapshot() map[string]string {
+	s.updateMu.RLock()
+	defer s.updateMu.RUnlock()
+	result := make(map[string]string, len(s.updateMap))
+	for reference, status := range s.updateMap {
+		result[reference] = status
+	}
+	return result
+}
+
+func summarizeProjectUpdates(references map[string]struct{}, statuses map[string]string) (string, int) {
+	if len(references) == 0 {
+		return "unknown", 0
+	}
+	available, current := 0, 0
+	for reference := range references {
+		switch statuses[reference] {
+		case "available":
+			available++
+		case "current":
+			current++
+		}
+	}
+	if available > 0 {
+		return "available", available
+	}
+	if current == len(references) {
+		return "current", 0
+	}
+	return "unknown", 0
 }
 
 func classifyImage(image *model.ImageReference) {

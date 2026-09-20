@@ -14,8 +14,6 @@ import { formatBytes, formatDate, formatPercent } from '../../utils/format'
 import { ComposeEditorDrawer } from './ComposeEditorDrawer'
 import { LogsDrawer } from './LogsDrawer'
 
-const policyLabels: Record<string, string> = { latest: 'latest 跟随', fixed: '固定版本', 'check-only': '仅检查' }
-
 export function ComposePage() {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
@@ -50,8 +48,7 @@ export function ComposePage() {
     { title: '容器', width: 58, align: 'center', render: (_, project) => <strong>{project.healthy}/{project.total}</strong> },
     { title: 'CPU', dataIndex: 'cpuPercent', width: 62, sorter: (a, b) => a.cpuPercent - b.cpuPercent, render: formatPercent },
     { title: '内存', dataIndex: 'memoryBytes', width: 76, sorter: (a, b) => a.memoryBytes - b.memoryBytes, render: formatBytes },
-    { title: '镜像更新', dataIndex: 'updateStatus', width: 86, render: (value, project) => value === 'available' ? <Tag color="gold">有更新 {project.updateCount ? `(${project.updateCount})` : ''}</Tag> : value === 'current' ? <Tag>无更新</Tag> : <Tag>未检查</Tag> },
-    { title: '更新策略', dataIndex: 'updatePolicy', width: 84, render: (value) => policyLabels[value] ?? value },
+    { title: '镜像更新', dataIndex: 'updateStatus', width: 110, render: (value, project) => value === 'available' ? <Tag color="gold">有更新 {project.updateCount ? `(${project.updateCount})` : ''}</Tag> : value === 'current' ? <Tag color="green">无更新</Tag> : <Tag>等待自动检查</Tag> },
     {
       title: '操作', key: 'actions', fixed: 'right', width: 250,
       render: (_, project) => (
@@ -78,7 +75,7 @@ export function ComposePage() {
   return (
     <section className="page compose-page">
       {contextHolder}
-      <PageHeader title="Compose 项目" description="管理已发现的 Docker Compose 项目，支持状态查看、日常操作和安全编辑。" />
+      <PageHeader title="Compose 项目" description="每 24 小时自动检查镜像更新；发现新版后由你确认是否更新。" />
       <div className="table-toolbar">
         <Space size={10}>
           <Input allowClear className="search-input" prefix={<SearchOutlined />} placeholder="搜索项目名称、路径或描述…" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -94,7 +91,7 @@ export function ComposePage() {
         columns={columns}
         dataSource={filtered}
         loading={loading}
-        scroll={{ x: 900 }}
+        scroll={{ x: 820 }}
         pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [15, 20, 25, 50], showTotal: (total) => `共 ${total} 项` }}
         expandable={{ expandedRowRender: (project) => <ContainerSubtable containers={project.containers} />, rowExpandable: (project) => project.containers.length > 0, columnWidth: 32 }}
       />

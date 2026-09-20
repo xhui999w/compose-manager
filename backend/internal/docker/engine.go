@@ -256,10 +256,19 @@ func (e *Engine) Images(ctx context.Context) ([]model.ImageReference, error) {
 		}
 		for _, ref := range tags {
 			repository, tag := splitImage(ref)
-			result = append(result, model.ImageReference{ID: item.ID, Repository: repository, Tag: tag, Digest: first(item.RepoDigests), Size: item.Size, CreatedAt: time.Unix(item.Created, 0).UTC(), UpdateStatus: "unknown"})
+			result = append(result, model.ImageReference{ID: item.ID, Repository: repository, Tag: tag, Digest: digestForRepository(repository, item.RepoDigests), Size: item.Size, CreatedAt: time.Unix(item.Created, 0).UTC(), UpdateStatus: "unknown"})
 		}
 	}
 	return result, nil
+}
+
+func digestForRepository(repository string, digests []string) string {
+	for _, digest := range digests {
+		if value, _, ok := strings.Cut(digest, "@"); ok && value == repository {
+			return digest
+		}
+	}
+	return ""
 }
 
 func (e *Engine) DeleteImage(ctx context.Context, id string) error {

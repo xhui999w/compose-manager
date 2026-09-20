@@ -23,3 +23,13 @@ func TestDemuxTTYLogs(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestDigestForRepository(t *testing.T) {
+	digests := []string{"docker.io/library/nginx@sha256:aaa", "ghcr.io/example/app@sha256:bbb"}
+	if got := digestForRepository("ghcr.io/example/app", digests); got != digests[1] {
+		t.Fatalf("digestForRepository() = %q, want %q", got, digests[1])
+	}
+	if got := digestForRepository("example/missing", digests); got != "" {
+		t.Fatalf("digestForRepository() = %q, want empty", got)
+	}
+}

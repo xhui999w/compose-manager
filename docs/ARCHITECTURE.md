@@ -105,7 +105,7 @@ Diff 使用行级 unified diff；前端 Monaco Diff Editor 只负责展示，最
 
 ## 8. SQLite
 
-SQLite 保存设置、端口访问配置、更新策略、Compose 版本元数据、更新记录和审计事件。启用 WAL、foreign keys、busy timeout，迁移在启动时事务执行。
+SQLite 保存设置、端口访问配置、Compose 版本元数据、更新记录和审计事件。启用 WAL、foreign keys、busy timeout，迁移在启动时事务执行。
 
 核心表：
 
@@ -126,9 +126,11 @@ SQLite 保存设置、端口访问配置、更新策略、Compose 版本元数�
 
 镜像引用解析为 registry/repository/tag。Registry client 先请求 manifest，处理 Bearer token challenge，再读取 `Docker-Content-Digest`；对 manifest list 记录列表 digest，并按本机平台解析子 manifest 作为扩展字段。凭据来自服务端 registry 配置，不下发前端。
 
-- latest：本地 RepoDigest 与远端 digest 不同即提示。
-- 固定版本：同 tag digest 改变可提示“标签内容变化”；跨 tag 升级仅在用户选择目标版本后执行。
-- 仅检查：永不进入 pull/apply。
+- 后端启动后立即检查一次，此后由单一后台任务每 24 小时检查。
+- 本地 RepoDigest 与远端 digest 不同即提示；缺少 Digest、认证失败或限流时保持 unknown。
+- 自动任务只写入内存状态和审计事件，永不进入 pull/apply。
+- Compose 项目状态由其引用镜像汇总；任一镜像存在更新即显示数量，全部已确认最新才显示“无更新”。
+- pull/apply 只能由已登录用户在项目行上明确确认后触发。
 
 检测任务限速、带退避并缓存结果。更新流水线串行锁定项目，所有阶段写 `update_records`。旧 ImageID/Digest 在 pull 前记录，为回滚保留。
 
@@ -156,7 +158,7 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 - `GET|POST /compose/projects/{key}/file`, `POST .../validate`, `POST .../apply`
 - `GET /compose/projects/{key}/versions`, `POST .../versions/{id}/restore`
 - `GET /containers`, `POST /containers/{id}/actions`, `GET /containers/{id}/inspect`
-- `GET /images`, `POST /images/{id}/delete`, `POST /images/check-updates`
+- `GET /images`, `DELETE /images/{id}`
 - `GET /updates`, `POST /updates/run`
 - `GET|PUT /settings`, `GET|PUT /access-links`
 
