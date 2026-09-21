@@ -10,20 +10,21 @@ type Port struct {
 }
 
 type Container struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Image       string            `json:"image"`
-	ImageID     string            `json:"imageId"`
-	State       string            `json:"state"`
-	Status      string            `json:"status"`
-	Project     string            `json:"project,omitempty"`
-	Service     string            `json:"service,omitempty"`
-	CPUPercent  float64           `json:"cpuPercent"`
-	MemoryBytes uint64            `json:"memoryBytes"`
-	MemoryLimit uint64            `json:"memoryLimit"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	Ports       []Port            `json:"ports"`
-	Labels      map[string]string `json:"-"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Image        string            `json:"image"`
+	ImageID      string            `json:"imageId"`
+	State        string            `json:"state"`
+	Status       string            `json:"status"`
+	Project      string            `json:"project,omitempty"`
+	Service      string            `json:"service,omitempty"`
+	CPUPercent   float64           `json:"cpuPercent"`
+	MemoryBytes  uint64            `json:"memoryBytes"`
+	MemoryLimit  uint64            `json:"memoryLimit"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	Ports        []Port            `json:"ports"`
+	UpdateStatus string            `json:"updateStatus"`
+	Labels       map[string]string `json:"-"`
 }
 
 type Project struct {

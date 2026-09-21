@@ -14,6 +14,7 @@ export type Container = {
   memoryLimit: number
   createdAt: string
   ports: Port[]
+  updateStatus: 'available' | 'current' | 'unknown'
 }
 
 export type Project = {

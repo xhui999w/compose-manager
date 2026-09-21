@@ -67,6 +67,8 @@
 - [x] 服务启动后立即检查、随后每 24 小时自动检查；无手动检查入口且不会自动升级。
 - [x] 镜像检查结果按 Compose 文件和容器引用汇总到项目首页。
 - [x] Registry manifest digest 检查、Bearer challenge 与 unknown 状态。
+- [x] 复用 Docker Engine 的 HTTPS registry mirrors，并将检查结果同步到容器页。
+- [x] 容器页改为默认 24 项的高密度卡片网格，提供总数/运行/停止/更新概览与筛选。
 - [~] pull → up 流水线（已完成；基于 healthcheck 的等待/失败回退待真实主机集成验证）。
 - [x] 旧/新镜像与 digest、结果、错误记录。
 - [x] 更新记录页面。

@@ -26,6 +26,9 @@ func TestDemuxTTYLogs(t *testing.T) {
 
 func TestDigestForRepository(t *testing.T) {
 	digests := []string{"docker.io/library/nginx@sha256:aaa", "ghcr.io/example/app@sha256:bbb"}
+	if got := digestForRepository("nginx", digests); got != digests[0] {
+		t.Fatalf("digestForRepository() Docker Hub alias = %q, want %q", got, digests[0])
+	}
 	if got := digestForRepository("ghcr.io/example/app", digests); got != digests[1] {
 		t.Fatalf("digestForRepository() = %q, want %q", got, digests[1])
 	}

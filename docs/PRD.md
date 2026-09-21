@@ -66,7 +66,7 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 
 ### 4.4 容器
 
-紧凑列表显示名称、状态、所属 Compose 项目、CPU、内存、镜像、Tag、端口、启动时间和操作。筛选包括全部、运行中、已停止、异常、有更新、非 Compose 容器。操作包括启动、停止、重启、更新、日志和 Inspect。
+容器页采用高密度小卡片网格，桌面端默认每页 24 个，显示名称、状态、所属 Compose 项目、CPU、内存、镜像、Tag、端口和操作。顶部用单行概览显示总数、运行中、已停止和有更新数量，并可直接作为筛选入口。筛选包括全部、运行中、已停止/异常、有更新、非 Compose 容器及 Compose 项目。操作包括启动、停止、重启、更新、日志和 Inspect。
 
 ### 4.5 镜像与安全删除
 
@@ -78,7 +78,7 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 
 ### 4.6 更新检查
 
-系统启动后立即执行一次镜像更新检查，此后默认每 24 小时自动检查。本阶段不提供手动检查入口，也绝不因检查结果自动升级。检查通过本地 RepoDigest 与远端 registry manifest digest 对比，将结果汇总到 Compose 项目和镜像列表；私有仓库、限流或缺少本地 Digest 时明确显示等待检查状态。
+系统启动后立即执行一次镜像更新检查，此后默认每 24 小时自动检查。本阶段不提供手动检查入口，也绝不因检查结果自动升级。检查通过本地 RepoDigest 与远端 registry manifest digest 对比，将结果汇总到 Compose 项目、容器和镜像列表。Docker Hub 检查优先复用 Docker Engine 已配置的 HTTPS registry mirrors，避免管理面板与 Docker daemon 的网络路径不一致；私有仓库、限流或缺少本地 Digest 时明确显示等待检查状态。
 
 发现更新后，必须由用户在具体 Compose 项目上确认更新操作。
 

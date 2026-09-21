@@ -58,6 +58,7 @@ func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {
 		return nil, errors.Join(scanErr, dockerErr)
 	}
 	s.sampleStats(ctx, containers)
+	s.enrichContainerUpdates(containers)
 	projects := map[string]*model.Project{}
 	projectImages := map[string]map[string]struct{}{}
 	for _, file := range files {
@@ -134,6 +135,7 @@ func (s *Service) Containers(ctx context.Context) ([]model.Container, error) {
 		return nil, err
 	}
 	s.sampleStats(ctx, items)
+	s.enrichContainerUpdates(items)
 	return items, nil
 }
 
@@ -344,7 +346,8 @@ func (s *Service) CheckImageUpdates(ctx context.Context) ([]model.ImageReference
 	if s.config.DemoMode {
 		return images, nil
 	}
-	semaphore := make(chan struct{}, 4)
+	mirrors, _ := s.docker.RegistryMirrors(ctx)
+	semaphore := make(chan struct{}, 12)
 	var wait sync.WaitGroup
 	for index := range images {
 		if images[index].Repository == "<none>" {
@@ -355,7 +358,7 @@ func (s *Service) CheckImageUpdates(ctx context.Context) ([]model.ImageReference
 			defer wait.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			remote, digestErr := s.checker.Digest(ctx, images[index].Repository+":"+images[index].Tag)
+			remote, digestErr := s.checker.Digest(ctx, images[index].Repository+":"+images[index].Tag, mirrors...)
 			if digestErr != nil {
 				images[index].UpdateStatus = "unknown"
 				return
@@ -392,6 +395,17 @@ func (s *Service) CheckImageUpdates(ctx context.Context) ([]model.ImageReference
 	}
 	_ = s.store.Audit(ctx, "image.update-check", "images", "all", "success", fmt.Sprintf("available=%d current=%d unknown=%d", available, current, unknown))
 	return images, nil
+}
+
+func (s *Service) enrichContainerUpdates(containers []model.Container) {
+	statuses := s.updateStatusSnapshot()
+	for index := range containers {
+		status, ok := statuses[canonicalImageRef(containers[index].Image)]
+		if !ok {
+			status = "unknown"
+		}
+		containers[index].UpdateStatus = status
+	}
 }
 
 func (s *Service) RunUpdate(ctx context.Context, key, service string) (model.UpdateRecord, error) {

@@ -37,7 +37,7 @@ func demoProjects(nasIP string) []model.Project {
 			if index == 0 && item.port > 0 {
 				ports = append(ports, model.Port{PrivatePort: 80, PublicPort: item.port, Type: "tcp"})
 			}
-			containers = append(containers, model.Container{ID: fmt.Sprintf("demo-%s-%d", item.name, index), Name: fmt.Sprintf("%s-%d", item.name, index+1), Image: fmt.Sprintf("ghcr.io/example/%s:latest", item.name), ImageID: fmt.Sprintf("sha256:%012d", index+1), State: state, Status: state, Project: item.name, Service: "app", CPUPercent: item.cpu / float64(item.total), MemoryBytes: item.memory / uint64(item.total), MemoryLimit: 2 << 30, CreatedAt: time.Now().Add(-24 * time.Hour), Ports: ports})
+			containers = append(containers, model.Container{ID: fmt.Sprintf("demo-%s-%d", item.name, index), Name: fmt.Sprintf("%s-%d", item.name, index+1), Image: fmt.Sprintf("ghcr.io/example/%s:latest", item.name), ImageID: fmt.Sprintf("sha256:%012d", index+1), State: state, Status: state, Project: item.name, Service: "app", CPUPercent: item.cpu / float64(item.total), MemoryBytes: item.memory / uint64(item.total), MemoryLimit: 2 << 30, CreatedAt: time.Now().Add(-24 * time.Hour), Ports: ports, UpdateStatus: item.update})
 		}
 		url := ""
 		if item.port > 0 {

@@ -72,6 +72,9 @@ type infoResponse struct {
 	NCPU              int    `json:"NCPU"`
 	MemTotal          uint64 `json:"MemTotal"`
 	ServerVersion     string `json:"ServerVersion"`
+	RegistryConfig    struct {
+		Mirrors []string `json:"Mirrors"`
+	} `json:"RegistryConfig"`
 }
 
 func (e *Engine) Info(ctx context.Context) (model.SystemInfo, error) {
@@ -80,6 +83,14 @@ func (e *Engine) Info(ctx context.Context) (model.SystemInfo, error) {
 		return model.SystemInfo{}, err
 	}
 	return model.SystemInfo{DockerAvailable: true, DockerVersion: data.ServerVersion, CPUs: data.NCPU, MemoryTotal: data.MemTotal, ContainersRun: data.ContainersRunning, ContainersTotal: data.Containers, Images: data.Images}, nil
+}
+
+func (e *Engine) RegistryMirrors(ctx context.Context) ([]string, error) {
+	var data infoResponse
+	if err := e.request(ctx, http.MethodGet, "/info", nil, &data); err != nil {
+		return nil, err
+	}
+	return append([]string(nil), data.RegistryConfig.Mirrors...), nil
 }
 
 type portResponse struct {
@@ -264,11 +275,22 @@ func (e *Engine) Images(ctx context.Context) ([]model.ImageReference, error) {
 
 func digestForRepository(repository string, digests []string) string {
 	for _, digest := range digests {
-		if value, _, ok := strings.Cut(digest, "@"); ok && value == repository {
+		if value, _, ok := strings.Cut(digest, "@"); ok && canonicalRepository(value) == canonicalRepository(repository) {
 			return digest
 		}
 	}
 	return ""
+}
+
+func canonicalRepository(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	for _, prefix := range []string{"registry-1.docker.io/", "index.docker.io/", "docker.io/"} {
+		value = strings.TrimPrefix(value, prefix)
+	}
+	if !strings.Contains(value, "/") {
+		value = "library/" + value
+	}
+	return value
 }
 
 func (e *Engine) DeleteImage(ctx context.Context, id string) error {

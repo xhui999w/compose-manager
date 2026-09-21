@@ -124,12 +124,12 @@ SQLite 保存设置、端口访问配置、Compose 版本元数据、更新记�
 
 ## 10. 更新检测
 
-镜像引用解析为 registry/repository/tag。Registry client 先请求 manifest，处理 Bearer token challenge，再读取 `Docker-Content-Digest`；对 manifest list 记录列表 digest，并按本机平台解析子 manifest 作为扩展字段。凭据来自服务端 registry 配置，不下发前端。
+镜像引用解析为 registry/repository/tag。Registry client 先请求 manifest，处理 Bearer token challenge，再读取 `Docker-Content-Digest`；对 manifest list 记录列表 digest，并按本机平台解析子 manifest 作为扩展字段。Docker Hub 请求先读取 Docker Engine `/info` 中已经配置的 HTTPS registry mirrors，逐一回退后才直连官方仓库；只接受无用户信息、无路径前缀的 HTTPS mirror。凭据来自服务端 registry 配置，不下发前端。
 
 - 后端启动后立即检查一次，此后由单一后台任务每 24 小时检查。
 - 本地 RepoDigest 与远端 digest 不同即提示；缺少 Digest、认证失败或限流时保持 unknown。
 - 自动任务只写入内存状态和审计事件，永不进入 pull/apply。
-- Compose 项目状态由其引用镜像汇总；任一镜像存在更新即显示数量，全部已确认最新才显示“无更新”。
+- Compose 项目与容器状态均由其引用镜像汇总；任一镜像存在更新即显示数量，全部已确认最新才显示“无更新”。
 - pull/apply 只能由已登录用户在项目行上明确确认后触发。
 
 检测任务限速、带退避并缓存结果。更新流水线串行锁定项目，所有阶段写 `update_records`。旧 ImageID/Digest 在 pull 前记录，为回滚保留。
