@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { DeleteOutlined, ReloadOutlined, SearchOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { Alert, Button, Descriptions, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -62,10 +62,21 @@ function referenceDescription(references: Set<string>) {
   return names.length ? `${names.length}：${names.join('、')}` : '0'
 }
 
+function imageRowKey(image: ImageReference) {
+  return `${image.id}:${image.repository}:${image.tag}`
+}
+
+function uniqueImages(images: ImageReference[]) {
+  return [...new Map(images.map((image) => [image.id, image])).values()]
+}
+
 export function ImagesPage() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ImageFilter>('all')
-  const [candidate, setCandidate] = useState<ImageReference>()
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+  const [deleteCandidates, setDeleteCandidates] = useState<ImageReference[]>([])
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteProgress, setDeleteProgress] = useState({ done: 0, total: 0 })
   const [deleting, setDeleting] = useState(false)
   const { data = [], error, loading, refresh } = useResource(api.images, [])
   const [messageApi, contextHolder] = message.useMessage()
@@ -118,19 +129,58 @@ export function ImagesPage() {
     }, 0)
   }, [images, usageByID])
 
-  const candidateUsage = candidate ? usageByID.get(candidate.id) ?? emptyUsage() : emptyUsage()
-  const hasReferences = usageCount(candidateUsage) > 0
+  const imageByKey = useMemo(() => new Map(images.map((image) => [imageRowKey(image), image])), [images])
+  const selectedImages = useMemo(() => selectedRowKeys.flatMap((key) => {
+    const image = imageByKey.get(key)
+    return image ? [image] : []
+  }), [imageByKey, selectedRowKeys])
+  const selectedUniqueImages = useMemo(() => uniqueImages(selectedImages), [selectedImages])
+  const safeFilteredKeys = useMemo(() => filtered
+    .filter((image) => usageCount(usageByID.get(image.id) ?? emptyUsage()) === 0)
+    .map(imageRowKey), [filtered, usageByID])
+  const uniqueDeleteCandidates = useMemo(() => uniqueImages(deleteCandidates), [deleteCandidates])
+  const blockedCandidates = useMemo(() => uniqueDeleteCandidates.filter((image) => usageCount(usageByID.get(image.id) ?? emptyUsage()) > 0), [uniqueDeleteCandidates, usageByID])
+  const deleteBytes = useMemo(() => uniqueDeleteCandidates.reduce((total, image) => total + (image.reclaimableBytes || image.size), 0), [uniqueDeleteCandidates])
+  const singleCandidate = uniqueDeleteCandidates.length === 1 ? uniqueDeleteCandidates[0] : undefined
+  const candidateUsage = singleCandidate ? usageByID.get(singleCandidate.id) ?? emptyUsage() : emptyUsage()
+  const hasReferences = blockedCandidates.length > 0
+
+  const openDelete = useCallback((candidates: ImageReference[]) => {
+    setDeleteError('')
+    setDeleteProgress({ done: 0, total: 0 })
+    setDeleteCandidates(uniqueImages(candidates))
+  }, [])
 
   const remove = async () => {
-    if (!candidate || hasReferences) return
+    if (!uniqueDeleteCandidates.length || hasReferences) return
     setDeleting(true)
+    setDeleteError('')
+    setDeleteProgress({ done: 0, total: uniqueDeleteCandidates.length })
+    const failed: { image: ImageReference; reason: string }[] = []
+    const deletedIDs = new Set<string>()
     try {
-      await api.deleteImage(candidate.id)
-      messageApi.success('镜像已删除')
-      setCandidate(undefined)
+      for (const [index, image] of uniqueDeleteCandidates.entries()) {
+        try {
+          await api.deleteImage(image.id)
+          deletedIDs.add(image.id)
+        } catch (reason) {
+          failed.push({ image, reason: reason instanceof Error ? reason.message : '删除失败' })
+        }
+        setDeleteProgress({ done: index + 1, total: uniqueDeleteCandidates.length })
+      }
+      setSelectedRowKeys((keys) => keys.filter((key) => {
+        const image = imageByKey.get(key)
+        return image ? !deletedIDs.has(image.id) : false
+      }))
       await refresh()
-    } catch (reason) {
-      messageApi.error(reason instanceof Error ? reason.message : '删除失败')
+      if (failed.length) {
+        setDeleteCandidates(failed.map((item) => item.image))
+        setDeleteError(failed.map((item) => `${item.image.repository}:${item.image.tag}：${item.reason}`).join('\n'))
+        messageApi.warning(`已删除 ${deletedIDs.size} 个，失败 ${failed.length} 个`)
+      } else {
+        messageApi.success(`已删除 ${deletedIDs.size} 个镜像`)
+        setDeleteCandidates([])
+      }
     } finally {
       setDeleting(false)
     }
@@ -148,8 +198,8 @@ export function ImagesPage() {
     { title: 'Compose', width: 86, align: 'center', render: (_, image) => <ReferenceTag references={usageByID.get(image.id)?.compose ?? new Set()} color="blue" emptyLabel="无 Compose 引用" /> },
     { title: '更新', dataIndex: 'updateStatus', width: 104, render: (value) => value === 'available' ? <Tag color="gold">有更新</Tag> : value === 'current' ? <Tag color="green">最新</Tag> : <Tag>等待检查</Tag> },
     { title: '分类', dataIndex: 'category', width: 132, render: (value) => <Tag>{categoryLabels[value] ?? value}</Tag> },
-    { title: '操作', fixed: 'right', width: 80, render: (_, image) => <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => setCandidate(image)}>删除</Button> },
-  ], [usageByID])
+    { title: '操作', fixed: 'right', width: 80, render: (_, image) => <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => openDelete([image])}>删除</Button> },
+  ], [openDelete, usageByID])
 
   const selectFilter = (value: ImageFilter) => setFilter(value)
 
@@ -169,42 +219,70 @@ export function ImagesPage() {
           </button>
         ))}
       </div>
-      <div className="table-toolbar">
+      <div className="table-toolbar image-table-toolbar">
         <Space>
           <Input allowClear className="search-input" prefix={<SearchOutlined />} placeholder="搜索 Repository 或 Tag…" value={query} onChange={(event) => setQuery(event.target.value)} />
           <Select<ImageFilter> value={filter} onChange={selectFilter} options={filterOptions} />
         </Space>
-        <Button icon={<ReloadOutlined />} onClick={() => void refresh()} loading={loading}>刷新数据</Button>
+        <Space>
+          <Typography.Text type="secondary">已选 {selectedUniqueImages.length} 个</Typography.Text>
+          <Button disabled={!safeFilteredKeys.length || deleting} onClick={() => setSelectedRowKeys(safeFilteredKeys)}>全选可删除（{safeFilteredKeys.length}）</Button>
+          <Button disabled={!selectedRowKeys.length || deleting} onClick={() => setSelectedRowKeys([])}>清空</Button>
+          <Button danger type="primary" icon={<DeleteOutlined />} disabled={!selectedUniqueImages.length || deleting} onClick={() => openDelete(selectedUniqueImages)}>批量删除</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => void refresh()} loading={loading}>刷新数据</Button>
+        </Space>
       </div>
       {error ? <Alert className="inline-alert" type="warning" showIcon title="镜像数据不可用" description={error.message} /> : null}
       <Table<ImageReference>
         className="dense-table"
-        rowKey={(image) => `${image.id}:${image.repository}:${image.tag}`}
+        rowKey={imageRowKey}
         size="small"
         columns={columns}
         dataSource={filtered}
         loading={loading}
+        rowSelection={{
+          selectedRowKeys,
+          columnWidth: 38,
+          fixed: true,
+          onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+          getCheckboxProps: (image) => {
+            const referenced = usageCount(usageByID.get(image.id) ?? emptyUsage()) > 0
+            return { disabled: referenced, title: referenced ? '仍有容器或 Compose 引用，不能删除' : '选择此镜像' }
+          },
+        }}
         scroll={{ x: 1400 }}
         pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [15, 20, 30, 50], showTotal: (total) => `共 ${total} 个镜像引用` }}
       />
       <Modal
-        open={Boolean(candidate)}
-        title="删除镜像前安全检查"
-        okText="确认删除"
+        open={Boolean(uniqueDeleteCandidates.length)}
+        title={uniqueDeleteCandidates.length > 1 ? `批量删除 ${uniqueDeleteCandidates.length} 个镜像` : '删除镜像前安全检查'}
+        okText={deleting ? `删除中 ${deleteProgress.done}/${deleteProgress.total}` : '确认删除'}
         cancelText="取消"
         okButtonProps={{ danger: true, disabled: hasReferences, loading: deleting }}
+        cancelButtonProps={{ disabled: deleting }}
+        closable={!deleting}
+        maskClosable={!deleting}
         onOk={() => void remove()}
-        onCancel={() => setCandidate(undefined)}
+        onCancel={() => { if (!deleting) setDeleteCandidates([]) }}
       >
-        <Typography.Paragraph><strong>{candidate?.repository}:{candidate?.tag}</strong><br />大小：{formatBytes(candidate?.size)}</Typography.Paragraph>
-        <Descriptions bordered size="small" column={1} items={[
-          { key: 'running', label: '运行容器引用', children: referenceDescription(candidateUsage.running) },
-          { key: 'stopped', label: '异常/停止容器引用', children: referenceDescription(candidateUsage.stopped) },
-          { key: 'compose', label: 'Compose 引用', children: referenceDescription(candidateUsage.compose) },
-        ]} />
+        {singleCandidate ? <>
+          <Typography.Paragraph><strong>{singleCandidate.repository}:{singleCandidate.tag}</strong><br />大小：{formatBytes(singleCandidate.size)}</Typography.Paragraph>
+          <Descriptions bordered size="small" column={1} items={[
+            { key: 'running', label: '运行容器引用', children: referenceDescription(candidateUsage.running) },
+            { key: 'stopped', label: '异常/停止容器引用', children: referenceDescription(candidateUsage.stopped) },
+            { key: 'compose', label: 'Compose 引用', children: referenceDescription(candidateUsage.compose) },
+          ]} />
+        </> : <>
+          <Typography.Paragraph>将删除 <strong>{uniqueDeleteCandidates.length}</strong> 个无引用镜像，预计释放 <strong>{formatBytes(deleteBytes)}</strong>。</Typography.Paragraph>
+          <Space size={[4, 4]} wrap>
+            {uniqueDeleteCandidates.slice(0, 12).map((image) => <Tag key={image.id}>{image.repository}:{image.tag}</Tag>)}
+            {uniqueDeleteCandidates.length > 12 ? <Tag>另 {uniqueDeleteCandidates.length - 12} 个</Tag> : null}
+          </Space>
+        </>}
         {hasReferences
-          ? <Alert className="modal-alert" type="error" showIcon title="当前不可安全删除" description="仍存在引用。服务端执行时也会按 Image ID 汇总所有 Tag 并拒绝删除。" />
-          : <Alert className="modal-alert" type="success" showIcon title="可以安全删除" description="服务端仍会在删除前再次核对所有引用。" />}
+          ? <Alert className="modal-alert" type="error" showIcon title="当前不可安全删除" description={`${blockedCandidates.length} 个镜像仍存在引用。服务端执行时也会按 Image ID 汇总所有 Tag 并拒绝删除。`} />
+          : <Alert className="modal-alert" type="success" showIcon title="可以安全删除" description="此操作不可撤销；每个镜像删除前，服务端都会再次核对运行容器、停止容器和 Compose 引用。" />}
+        {deleteError ? <Alert className="modal-alert" type="warning" showIcon title="部分镜像删除失败" description={<Typography.Text style={{ whiteSpace: 'pre-line' }}>{deleteError}</Typography.Text>} /> : null}
       </Modal>
     </section>
   )

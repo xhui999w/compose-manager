@@ -128,6 +128,8 @@ button, input, select, textarea { font: inherit; }
 .image-summary .image-summary--running { color: #27a864; }
 .image-summary .image-summary--stopped { color: #d98219; }
 .image-summary .image-summary--removable, .image-summary .image-summary--dangling { color: #d33e4f; }
+.image-table-toolbar { flex-wrap: wrap; }
+.image-table-toolbar > .ant-space:last-child { margin-left: auto; }
 .modal-alert { margin-top: 14px; }
 
 .settings-page { min-width: 720px; max-width: 1080px; }
