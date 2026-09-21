@@ -103,6 +103,26 @@ button, input, select, textarea { font: inherit; }
 .project-icon { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 22px; border-radius: 4px; color: #2f6fed; background: #edf3ff; }
 .row-actions { display: flex; align-items: center; justify-content: flex-start; gap: 1px; }
 .row-actions .ant-btn { width: 27px; min-width: 27px; padding-inline: 4px; font-size: 12px; }
+.project-sort-select { width: 150px; }
+.project-count { color: #8793a6; font-size: 11px; white-space: nowrap; }
+.compose-project-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
+.project-compact-row { min-width: 0; overflow: hidden; border: 1px solid #dfe5ed; border-radius: 5px; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
+.project-compact-row:hover { border-color: #b9c9e7; box-shadow: 0 2px 7px rgba(29, 44, 73, .055); }
+.project-compact-row__main { display: grid; grid-template-columns: 24px minmax(115px, 1fr) 26px 54px 70px 181px; align-items: center; gap: 6px; min-height: 43px; padding: 4px 7px; }
+.project-compact-row .project-expand { width: 23px; min-width: 23px; height: 23px; padding: 0; color: #718097; }
+.project-compact-row .project-expand .anticon { transition: transform .15s ease; }
+.project-compact-row.is-expanded .project-expand .anticon { transform: rotate(90deg); }
+.project-compact-row .project-name { gap: 6px; }
+.project-compact-row .project-name strong { display: block; max-width: 100%; white-space: nowrap; }
+.project-compact-row .state-dot { justify-self: center; }
+.project-metric { display: flex; align-items: baseline; gap: 3px; overflow: hidden; color: #334057; font-size: 11px; white-space: nowrap; }
+.project-metric small { color: #9aa5b5; font-size: 8px; }
+.project-compact-row .row-actions { justify-content: flex-end; }
+.project-compact-row .row-actions .ant-btn { width: 25px; min-width: 25px; height: 25px; padding: 0; }
+.project-compact-row__containers { padding: 6px; border-top: 1px solid #e7ebf1; background: #f8fafd; }
+.project-compact-row__containers .subtable { margin: 0; }
+.compose-empty { min-height: 300px; padding-top: 85px; border: 1px dashed #d8dee8; border-radius: 5px; background: #fff; }
+.project-pagination { justify-content: flex-end; margin-top: 11px; font-size: 11px; }
 .subtable { margin: 0 -6px -6px; }
 .subtable .ant-table { border-color: #e5eaf2; background: #fbfcfe; }
 .subtable .ant-table-thead > tr > th { background: #f2f6fb !important; }
@@ -172,6 +192,10 @@ button, input, select, textarea { font: inherit; }
   .container-toolbar__count { display: none; }
 }
 
+@media (min-width: 1500px) {
+  .compose-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 760px) {
   body { overflow: auto; }
   .app-shell { min-height: 100vh; height: auto; }
@@ -193,6 +217,10 @@ button, input, select, textarea { font: inherit; }
 [data-theme="dark"] .brand-copy strong, [data-theme="dark"] .page-header h1, [data-theme="dark"] .project-name strong, [data-theme="dark"] .system-stats strong { color: #e8edf5; }
 [data-theme="dark"] .brand-copy span, [data-theme="dark"] .page-header p, [data-theme="dark"] .system-bar { color: #9ba8bb; }
 [data-theme="dark"] .project-icon { background: #1b315f; }
+[data-theme="dark"] .project-compact-row, [data-theme="dark"] .compose-empty { border-color: #303a4b; background: #171f2c; }
+[data-theme="dark"] .project-compact-row:hover { border-color: #45536a; }
+[data-theme="dark"] .project-metric { color: #d1d8e4; }
+[data-theme="dark"] .project-compact-row__containers { border-color: #303a4b; background: #141d2a; }
 [data-theme="dark"] .settings-page form, [data-theme="dark"] .reclaim-summary, [data-theme="dark"] .auth-panel { border-color: #303a4b; background: #171f2c; }
 [data-theme="dark"] .reclaim-summary strong, [data-theme="dark"] .settings-section h2 { color: #e2e8f2; }
 [data-theme="dark"] .sidebar-user { border-color: #303a4b; background: #1d2735; color: #c4ccda; }
@@ -210,3 +238,4 @@ button, input, select, textarea { font: inherit; }
 [data-density="comfortable"] .dense-table .ant-table-tbody > tr > td { height: 48px; padding-block: 9px !important; }
 [data-density="comfortable"] .container-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 [data-density="comfortable"] .container-card { padding: 11px 12px 9px; }
+[data-density="comfortable"] .project-compact-row__main { min-height: 49px; padding-block: 7px; }
