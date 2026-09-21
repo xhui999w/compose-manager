@@ -8,6 +8,7 @@ import (
 
 	"github.com/compose-manager/compose-manager/backend/internal/compose"
 	"github.com/compose-manager/compose-manager/backend/internal/config"
+	"github.com/compose-manager/compose-manager/backend/internal/model"
 	"github.com/compose-manager/compose-manager/backend/internal/store"
 )
 
@@ -87,6 +88,25 @@ func TestPutSettingsRejectsInvalidProxyAndTimeout(t *testing.T) {
 	}
 	if err := service.PutSettings(context.Background(), map[string]any{"operationTimeoutMinutes": float64(1)}); err == nil {
 		t.Fatal("expected an invalid timeout to be rejected")
+	}
+}
+
+func TestMarkUpdatedImagesCurrentOnlyTouchesUpdatedService(t *testing.T) {
+	updatedRef := canonicalImageRef("jxxghp/moviepilot-v3:latest")
+	otherRef := canonicalImageRef("postgres:17")
+	service := &Service{updateMap: map[string]string{updatedRef: "available", otherRef: "available"}}
+	service.markUpdatedImagesCurrent("moviepilot", "app", []model.Container{
+		{Project: "moviepilot", Service: "app", Image: "jxxghp/moviepilot-v3:latest"},
+		{Project: "moviepilot", Service: "database", Image: "postgres:17"},
+		{Project: "other", Service: "app", Image: "redis:latest"},
+	})
+
+	statuses := service.updateStatusSnapshot()
+	if statuses[updatedRef] != "current" {
+		t.Fatalf("expected updated service to be current, got %q", statuses[updatedRef])
+	}
+	if statuses[otherRef] != "available" {
+		t.Fatalf("expected other service to remain available, got %q", statuses[otherRef])
 	}
 }
 

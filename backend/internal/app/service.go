@@ -424,6 +424,26 @@ func (s *Service) enrichContainerUpdates(containers []model.Container) {
 	}
 }
 
+func (s *Service) markUpdatedImagesCurrent(projectKey, service string, containers []model.Container) {
+	references := make(map[string]struct{})
+	for _, container := range containers {
+		if container.Project != projectKey || (service != "" && container.Service != service) {
+			continue
+		}
+		if reference := canonicalImageRef(container.Image); reference != "" {
+			references[reference] = struct{}{}
+		}
+	}
+	if len(references) == 0 {
+		return
+	}
+	s.updateMu.Lock()
+	for reference := range references {
+		s.updateMap[reference] = "current"
+	}
+	s.updateMu.Unlock()
+}
+
 var ErrUpdateAlreadyRunning = errors.New("update task is already running")
 
 func (s *Service) StartUpdate(ctx context.Context, key, service string) (model.UpdateTask, error) {
@@ -506,6 +526,7 @@ func (s *Service) runUpdateTask(id, taskKey string) {
 			updateErr = errors.Join(containersErr, imagesErr)
 		} else {
 			record.NewImage, record.NewDigest = updateSnapshot(task.Project, task.Service, afterContainers, afterImages)
+			s.markUpdatedImagesCurrent(task.Project, task.Service, afterContainers)
 		}
 	}
 	if updateErr != nil {

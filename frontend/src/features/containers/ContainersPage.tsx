@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FileTextOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, Button, Drawer, Empty, Input, Pagination, Popconfirm, Select, Spin, Tooltip, message } from 'antd'
 import { api } from '../../api/client'
@@ -59,8 +59,39 @@ export function ContainersPage() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [logContainer, setLogContainer] = useState<Container>()
   const [logs, setLogs] = useState('')
+  const [watchedTaskIDs, setWatchedTaskIDs] = useState<string[]>([])
   const { data = [], error, loading, refresh } = useResource(api.containers, [])
   const [messageApi, contextHolder] = message.useMessage()
+
+  useEffect(() => {
+    if (watchedTaskIDs.length === 0) return
+    let disposed = false
+    let timer = 0
+    const poll = async () => {
+      try {
+        const tasks = await api.updateTasks()
+        if (disposed) return
+        const watched = new Set(watchedTaskIDs)
+        const finished = tasks.filter((task) => watched.has(task.id) && (task.status === 'success' || task.status === 'failed'))
+        const known = new Set(tasks.map((task) => task.id))
+        const missing = watchedTaskIDs.filter((id) => !known.has(id))
+        if (finished.length > 0 || missing.length > 0) {
+          await refresh()
+          if (disposed) return
+          if (finished.some((task) => task.status === 'success')) messageApi.success('更新完成，容器状态已刷新')
+          if (finished.some((task) => task.status === 'failed')) messageApi.error('更新失败，请在“更新进度”查看原因')
+          const ended = new Set([...finished.map((task) => task.id), ...missing])
+          setWatchedTaskIDs((current) => current.filter((id) => !ended.has(id)))
+          return
+        }
+      } catch {
+        // 临时读取失败时继续等待，更新任务本身不受影响。
+      }
+      if (!disposed) timer = window.setTimeout(() => void poll(), 1500)
+    }
+    void poll()
+    return () => { disposed = true; window.clearTimeout(timer) }
+  }, [watchedTaskIDs, refresh, messageApi])
 
   const projects = useMemo(() => [...new Set(data.map((item) => item.project).filter((value): value is string => Boolean(value)))].sort(), [data])
   const filtered = useMemo(() => data.filter((item) => {
@@ -92,7 +123,11 @@ export function ContainersPage() {
   }
   const update = async (container: Container) => {
     if (!container.project) return
-    try { await api.runUpdate(container.project, container.service ?? ''); messageApi.success(`${container.name} 已开始更新，请在左侧“更新进度”查看`) }
+    try {
+      const task = await api.runUpdate(container.project, container.service ?? '')
+      setWatchedTaskIDs((current) => current.includes(task.id) ? current : [...current, task.id])
+      messageApi.success(`${container.name} 已开始更新，请在左侧“更新进度”查看`)
+    }
     catch (reason) { messageApi.error(reason instanceof Error ? reason.message : '无法开始更新') }
   }
 
