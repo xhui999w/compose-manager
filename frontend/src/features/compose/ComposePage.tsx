@@ -3,7 +3,7 @@ import {
   CaretRightOutlined, EditOutlined, FileTextOutlined, LinkOutlined, MoreOutlined, PauseOutlined,
   PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Dropdown, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, message } from 'antd'
+import { Alert, Button, Dropdown, Input, Popconfirm, Select, Space, Table, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { api } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
@@ -45,10 +45,8 @@ export function ComposePage() {
   const columns: ColumnsType<Project> = [
     { title: '项目名称', dataIndex: 'name', width: 145, sorter: (a, b) => a.name.localeCompare(b.name), render: (name, project) => <div className="project-name"><span className="project-icon"><CaretRightOutlined /></span><div><strong>{name}</strong><small>{project.discoverySource}</small></div></div> },
     { title: '运行状态', dataIndex: 'status', width: 76, align: 'center', sorter: (a, b) => Number(a.status === 'running') - Number(b.status === 'running'), defaultSortOrder: 'ascend', sortDirections: ['ascend', 'descend', 'ascend'], render: (value) => <StateBadge state={value} /> },
-    { title: '容器', width: 58, align: 'center', render: (_, project) => <strong>{project.healthy}/{project.total}</strong> },
     { title: 'CPU', dataIndex: 'cpuPercent', width: 62, sorter: (a, b) => a.cpuPercent - b.cpuPercent, render: formatPercent },
     { title: '内存', dataIndex: 'memoryBytes', width: 76, sorter: (a, b) => a.memoryBytes - b.memoryBytes, render: formatBytes },
-    { title: '镜像更新', dataIndex: 'updateStatus', width: 110, render: (value, project) => value === 'available' ? <Tag color="gold">有更新 {project.updateCount ? `(${project.updateCount})` : ''}</Tag> : value === 'current' ? <Tag color="green">无更新</Tag> : <Tag>等待自动检查</Tag> },
     {
       title: '操作', key: 'actions', fixed: 'right', width: 250,
       render: (_, project) => (
@@ -91,7 +89,7 @@ export function ComposePage() {
         columns={columns}
         dataSource={filtered}
         loading={loading}
-        scroll={{ x: 820 }}
+        scroll={{ x: 650 }}
         pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [15, 20, 25, 50], showTotal: (total) => `共 ${total} 项` }}
         expandable={{ expandedRowRender: (project) => <ContainerSubtable containers={project.containers} />, rowExpandable: (project) => project.containers.length > 0, columnWidth: 32 }}
       />
