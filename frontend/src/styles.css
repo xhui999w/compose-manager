@@ -154,6 +154,8 @@ button, input, select, textarea { font: inherit; }
 @media (max-width: 1199px) {
   .system-stats span:nth-of-type(4), .system-stats span:nth-of-type(5), .system-stats i:nth-of-type(4), .system-stats i:nth-of-type(5) { display: none; }
   .page { min-width: 760px; padding-inline: 14px; }
+  .container-toolbar { grid-template-columns: minmax(210px, 1fr) 132px 168px auto; }
+  .container-toolbar__count { display: none; }
 }
 
 @media (max-width: 760px) {

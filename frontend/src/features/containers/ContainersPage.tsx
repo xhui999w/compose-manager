@@ -20,7 +20,7 @@ type ContainerCardProps = {
 
 function ContainerCard({ container, onAction, onLogs, onInspect, onUpdate }: ContainerCardProps) {
   const running = container.state === 'running'
-  const ports = container.ports.filter((port) => port.publicPort).map((port) => `${port.publicPort}:${port.privatePort}`).join(', ')
+  const ports = [...new Set(container.ports.filter((port) => port.publicPort).map((port) => `${port.publicPort}:${port.privatePort}`))].join(', ')
   const project = container.project || '非 Compose'
 
   return (
