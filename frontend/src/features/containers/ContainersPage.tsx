@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { FileTextOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, Button, Drawer, Empty, Input, Pagination, Popconfirm, Select, Spin, Tag, Tooltip, message } from 'antd'
+import { Alert, Button, Drawer, Empty, Input, Pagination, Popconfirm, Select, Spin, Tooltip, message } from 'antd'
 import { api } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
 import { StateBadge } from '../../components/StateBadge'
 import { useResource } from '../../hooks/useResource'
 import type { Container } from '../../types'
-import { formatBytes, formatDate, formatPercent } from '../../utils/format'
+import { formatBytes, formatPercent } from '../../utils/format'
 
 const PAGE_SIZE = 24
 
@@ -19,9 +19,6 @@ type ContainerCardProps = {
 
 function ContainerCard({ container, onAction, onLogs, onUpdate }: ContainerCardProps) {
   const running = container.state === 'running'
-  const ports = [...new Set(container.ports.filter((port) => port.publicPort).map((port) => `${port.publicPort}:${port.privatePort}`))].join(', ')
-  const project = container.project || '非 Compose'
-
   return (
     <article className={`container-card${container.updateStatus === 'available' ? ' container-card--update' : ''}`}>
       <div className="container-card__head">
@@ -30,10 +27,6 @@ function ContainerCard({ container, onAction, onLogs, onUpdate }: ContainerCardP
         {container.updateStatus === 'available' ? <span className="container-card__update">有更新</span> : null}
       </div>
       <Tooltip title={container.image}><div className="container-card__image">{container.image}</div></Tooltip>
-      <div className="container-card__meta">
-        <Tag color={container.project ? 'blue' : undefined}>{project}</Tag>
-        <span title={ports ? `端口 ${ports}` : `创建于 ${formatDate(container.createdAt)}`}>{ports || formatDate(container.createdAt)}</span>
-      </div>
       <div className="container-card__usage">
         <span>CPU {formatPercent(container.cpuPercent)}</span><i />
         <span>内存 {formatBytes(container.memoryBytes)}</span>
