@@ -70,6 +70,10 @@ function uniqueImages(images: ImageReference[]) {
   return [...new Map(images.map((image) => [image.id, image])).values()]
 }
 
+function imageLabel(image: ImageReference) {
+  return image.repository === '<none>' && image.tag === '<none>' ? shortDigest(image.id) : `${image.repository}:${image.tag}`
+}
+
 export function ImagesPage() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ImageFilter>('all')
@@ -135,9 +139,10 @@ export function ImagesPage() {
     return image ? [image] : []
   }), [imageByKey, selectedRowKeys])
   const selectedUniqueImages = useMemo(() => uniqueImages(selectedImages), [selectedImages])
-  const safeFilteredKeys = useMemo(() => filtered
-    .filter((image) => usageCount(usageByID.get(image.id) ?? emptyUsage()) === 0)
-    .map(imageRowKey), [filtered, usageByID])
+  const safeFilteredImages = useMemo(() => filtered
+    .filter((image) => usageCount(usageByID.get(image.id) ?? emptyUsage()) === 0), [filtered, usageByID])
+  const safeFilteredKeys = useMemo(() => safeFilteredImages.map(imageRowKey), [safeFilteredImages])
+  const safeFilteredCount = useMemo(() => uniqueImages(safeFilteredImages).length, [safeFilteredImages])
   const uniqueDeleteCandidates = useMemo(() => uniqueImages(deleteCandidates), [deleteCandidates])
   const blockedCandidates = useMemo(() => uniqueDeleteCandidates.filter((image) => usageCount(usageByID.get(image.id) ?? emptyUsage()) > 0), [uniqueDeleteCandidates, usageByID])
   const deleteBytes = useMemo(() => uniqueDeleteCandidates.reduce((total, image) => total + (image.reclaimableBytes || image.size), 0), [uniqueDeleteCandidates])
@@ -226,7 +231,7 @@ export function ImagesPage() {
         </Space>
         <Space>
           <Typography.Text type="secondary">已选 {selectedUniqueImages.length} 个</Typography.Text>
-          <Button disabled={!safeFilteredKeys.length || deleting} onClick={() => setSelectedRowKeys(safeFilteredKeys)}>全选可删除（{safeFilteredKeys.length}）</Button>
+          <Button disabled={!safeFilteredKeys.length || deleting} onClick={() => setSelectedRowKeys(safeFilteredKeys)}>全选可删除（{safeFilteredCount}）</Button>
           <Button disabled={!selectedRowKeys.length || deleting} onClick={() => setSelectedRowKeys([])}>清空</Button>
           <Button danger type="primary" icon={<DeleteOutlined />} disabled={!selectedUniqueImages.length || deleting} onClick={() => openDelete(selectedUniqueImages)}>批量删除</Button>
           <Button icon={<ReloadOutlined />} onClick={() => void refresh()} loading={loading}>刷新数据</Button>
@@ -275,7 +280,7 @@ export function ImagesPage() {
         </> : <>
           <Typography.Paragraph>将删除 <strong>{uniqueDeleteCandidates.length}</strong> 个无引用镜像，预计释放 <strong>{formatBytes(deleteBytes)}</strong>。</Typography.Paragraph>
           <Space size={[4, 4]} wrap>
-            {uniqueDeleteCandidates.slice(0, 12).map((image) => <Tag key={image.id}>{image.repository}:{image.tag}</Tag>)}
+            {uniqueDeleteCandidates.slice(0, 12).map((image) => <Tag key={image.id}>{imageLabel(image)}</Tag>)}
             {uniqueDeleteCandidates.length > 12 ? <Tag>另 {uniqueDeleteCandidates.length - 12} 个</Tag> : null}
           </Space>
         </>}
