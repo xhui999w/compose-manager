@@ -16,6 +16,7 @@ type Config struct {
 	DockerHost          string
 	NASIP               string
 	DefaultScheme       string
+	ProxyURL            string
 	DemoMode            bool
 	OperationTimeout    time.Duration
 	UpdateCheckInterval time.Duration
@@ -34,8 +35,9 @@ func Load() Config {
 		DockerHost:          env("CM_DOCKER_HOST", "unix:///var/run/docker.sock"),
 		NASIP:               env("CM_NAS_IP", "127.0.0.1"),
 		DefaultScheme:       env("CM_DEFAULT_SCHEME", "http"),
+		ProxyURL:            strings.TrimSpace(os.Getenv("CM_PROXY_URL")),
 		DemoMode:            envBool("CM_DEMO_MODE", false),
-		OperationTimeout:    envDuration("CM_OPERATION_TIMEOUT", 2*time.Minute),
+		OperationTimeout:    envDuration("CM_OPERATION_TIMEOUT", 15*time.Minute),
 		UpdateCheckInterval: envDuration("CM_UPDATE_CHECK_INTERVAL", 24*time.Hour),
 		SessionTTL:          envDuration("CM_SESSION_TTL", 7*24*time.Hour),
 		SecureCookie:        envBool("CM_SECURE_COOKIE", false),
@@ -58,7 +60,24 @@ func ApplySettings(c Config, values map[string]any) Config {
 	if value, ok := values["defaultScheme"].(string); ok && (value == "http" || value == "https") {
 		c.DefaultScheme = value
 	}
+	if value, ok := values["proxyURL"].(string); ok {
+		c.ProxyURL = strings.TrimSpace(value)
+	}
+	if value, ok := settingNumber(values["operationTimeoutMinutes"]); ok && value >= 2 && value <= 60 {
+		c.OperationTimeout = time.Duration(value) * time.Minute
+	}
 	return c
+}
+
+func settingNumber(value any) (int, bool) {
+	switch number := value.(type) {
+	case float64:
+		return int(number), number == float64(int(number))
+	case int:
+		return number, true
+	default:
+		return 0, false
+	}
 }
 
 func env(key, fallback string) string {

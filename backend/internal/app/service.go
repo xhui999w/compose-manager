@@ -39,7 +39,7 @@ type Service struct {
 }
 
 func New(cfg config.Config, engine *dockerapi.Engine, guard *compose.PathGuard, runner *compose.Runner, editor *compose.Editor, store *store.Store) *Service {
-	return &Service{config: cfg, docker: engine, discovery: compose.NewDiscovery(guard), guard: guard, runner: runner, editor: editor, store: store, checker: update.NewRegistryChecker(), updateMap: map[string]string{}, updateTasks: map[string]*model.UpdateTask{}, activeUpdates: map[string]string{}}
+	return &Service{config: cfg, docker: engine, discovery: compose.NewDiscovery(guard), guard: guard, runner: runner, editor: editor, store: store, checker: update.NewRegistryChecker(cfg.ProxyURL), updateMap: map[string]string{}, updateTasks: map[string]*model.UpdateTask{}, activeUpdates: map[string]string{}}
 }
 
 func (s *Service) Health(ctx context.Context) map[string]any {
@@ -467,7 +467,7 @@ func (s *Service) UpdateTasks() []model.UpdateTask {
 }
 
 func (s *Service) runUpdateTask(id, taskKey string) {
-	timeout := s.config.OperationTimeout * 3
+	timeout := s.operationTimeout() * 3
 	if timeout <= 0 {
 		timeout = 6 * time.Minute
 	}
@@ -629,15 +629,78 @@ func publicTaskError(err error) string {
 func (s *Service) Updates(ctx context.Context) ([]model.UpdateRecord, error) {
 	return s.store.Updates(ctx)
 }
-func (s *Service) Settings(ctx context.Context) (map[string]any, error) { return s.store.Settings(ctx) }
+func (s *Service) Settings(ctx context.Context) (map[string]any, error) {
+	values, err := s.store.Settings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, exists := values["proxyURL"]; !exists {
+		values["proxyURL"] = s.config.ProxyURL
+	}
+	if _, exists := values["operationTimeoutMinutes"]; !exists {
+		values["operationTimeoutMinutes"] = int(s.operationTimeout() / time.Minute)
+	}
+	return values, nil
+}
 func (s *Service) PutSettings(ctx context.Context, values map[string]any) error {
-	allowed := map[string]bool{"dockerHost": true, "composeRoots": true, "nasIP": true, "updateInterval": true, "defaultScheme": true, "externalURL": true, "density": true}
+	allowed := map[string]bool{"dockerHost": true, "composeRoots": true, "nasIP": true, "updateInterval": true, "defaultScheme": true, "externalURL": true, "density": true, "proxyURL": true, "operationTimeoutMinutes": true}
 	for key := range values {
 		if !allowed[key] {
 			return fmt.Errorf("unsupported setting %q", key)
 		}
 	}
-	return s.store.PutSettings(ctx, values)
+	proxyURL, hasProxy := values["proxyURL"]
+	if hasProxy {
+		proxyString, ok := proxyURL.(string)
+		if !ok {
+			return errors.New("代理地址格式无效")
+		}
+		if _, err := update.ParseProxyURL(proxyString); err != nil {
+			return err
+		}
+	}
+	timeoutValue, hasTimeout := values["operationTimeoutMinutes"]
+	timeoutMinutes := 0
+	if hasTimeout {
+		var ok bool
+		timeoutMinutes, ok = numberSetting(timeoutValue)
+		if !ok || timeoutMinutes < 2 || timeoutMinutes > 60 {
+			return errors.New("更新超时必须为 2～60 分钟的整数")
+		}
+	}
+	if err := s.store.PutSettings(ctx, values); err != nil {
+		return err
+	}
+	if hasProxy {
+		if err := s.checker.SetProxy(proxyURL.(string)); err != nil {
+			return err
+		}
+	}
+	if hasTimeout && s.runner != nil {
+		s.runner.SetTimeout(time.Duration(timeoutMinutes) * time.Minute)
+	}
+	return nil
+}
+
+func (s *Service) operationTimeout() time.Duration {
+	if s.runner != nil && s.runner.Timeout() > 0 {
+		return s.runner.Timeout()
+	}
+	if s.config.OperationTimeout > 0 {
+		return s.config.OperationTimeout
+	}
+	return 15 * time.Minute
+}
+
+func numberSetting(value any) (int, bool) {
+	switch number := value.(type) {
+	case float64:
+		return int(number), number == float64(int(number))
+	case int:
+		return number, true
+	default:
+		return 0, false
+	}
 }
 
 func (s *Service) sampleStats(ctx context.Context, containers []model.Container) {

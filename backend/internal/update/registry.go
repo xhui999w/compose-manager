@@ -9,15 +9,60 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
 const manifestAccept = "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json"
 
-type RegistryChecker struct{ client *http.Client }
+type RegistryChecker struct {
+	mu     sync.RWMutex
+	client *http.Client
+}
 
-func NewRegistryChecker() *RegistryChecker {
-	return &RegistryChecker{client: &http.Client{Timeout: 6 * time.Second}}
+func NewRegistryChecker(proxyURL ...string) *RegistryChecker {
+	checker := &RegistryChecker{client: registryHTTPClient(nil)}
+	if len(proxyURL) > 0 {
+		_ = checker.SetProxy(proxyURL[0])
+	}
+	return checker
+}
+
+func (c *RegistryChecker) SetProxy(value string) error {
+	proxy, err := ParseProxyURL(value)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.client = registryHTTPClient(proxy)
+	c.mu.Unlock()
+	return nil
+}
+
+func ParseProxyURL(value string) (*url.URL, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, errors.New("代理地址必须使用 http:// 或 https://，且只能包含主机和端口")
+	}
+	return parsed, nil
+}
+
+func registryHTTPClient(proxy *url.URL) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if proxy != nil {
+		transport.Proxy = http.ProxyURL(proxy)
+	}
+	return &http.Client{Timeout: 15 * time.Second, Transport: transport}
+}
+
+func (c *RegistryChecker) httpClient() *http.Client {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.client
 }
 
 func (c *RegistryChecker) Digest(ctx context.Context, image string, dockerHubMirrors ...string) (string, error) {
@@ -40,7 +85,8 @@ func (c *RegistryChecker) digestFromEndpoint(ctx context.Context, baseURL, repos
 	endpoint := strings.TrimRight(baseURL, "/") + "/v2/" + repository + "/manifests/" + url.PathEscape(tag)
 	request, _ := http.NewRequestWithContext(ctx, http.MethodHead, endpoint, nil)
 	request.Header.Set("Accept", manifestAccept)
-	response, err := c.client.Do(request)
+	client := c.httpClient()
+	response, err := client.Do(request)
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +100,7 @@ func (c *RegistryChecker) digestFromEndpoint(ctx context.Context, baseURL, repos
 		request, _ = http.NewRequestWithContext(ctx, http.MethodHead, endpoint, nil)
 		request.Header.Set("Accept", manifestAccept)
 		request.Header.Set("Authorization", "Bearer "+token)
-		response, err = c.client.Do(request)
+		response, err = client.Do(request)
 		if err != nil {
 			return "", err
 		}
@@ -120,7 +166,7 @@ func (c *RegistryChecker) token(ctx context.Context, challenge string) (string, 
 	}
 	parsed.RawQuery = query.Encode()
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
-	response, err := c.client.Do(request)
+	response, err := c.httpClient().Do(request)
 	if err != nil {
 		return "", err
 	}

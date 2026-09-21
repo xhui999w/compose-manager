@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compose-manager/compose-manager/backend/internal/compose"
 	"github.com/compose-manager/compose-manager/backend/internal/config"
 	"github.com/compose-manager/compose-manager/backend/internal/store"
 )
@@ -16,7 +17,7 @@ func TestDemoUpdateTaskLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	service := New(config.Config{DemoMode: true, NASIP: "127.0.0.1", OperationTimeout: time.Second}, nil, nil, nil, nil, database)
+	service := New(config.Config{DemoMode: true, NASIP: "127.0.0.1", OperationTimeout: time.Second}, nil, nil, compose.NewRunner(time.Second), nil, database)
 
 	task, err := service.StartUpdate(context.Background(), "immich", "server")
 	if err != nil {
@@ -41,6 +42,52 @@ func TestDemoUpdateTaskLifecycle(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("update task did not complete")
+}
+
+func TestPutSettingsSupportsOptionalProxyAndTimeout(t *testing.T) {
+	database, err := store.Open(filepath.Join(t.TempDir(), "compose-manager.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	runner := compose.NewRunner(15 * time.Minute)
+	service := New(config.Config{DemoMode: true, OperationTimeout: 15 * time.Minute}, nil, nil, runner, nil, database)
+
+	if err := service.PutSettings(context.Background(), map[string]any{"density": "compact"}); err != nil {
+		t.Fatalf("partial settings update failed: %v", err)
+	}
+	if err := service.PutSettings(context.Background(), map[string]any{
+		"proxyURL":                "http://192.168.31.126:7890",
+		"operationTimeoutMinutes": float64(20),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if runner.Timeout() != 20*time.Minute {
+		t.Fatalf("expected a 20 minute timeout, got %s", runner.Timeout())
+	}
+	values, err := service.Settings(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values["proxyURL"] != "http://192.168.31.126:7890" || values["operationTimeoutMinutes"] != float64(20) {
+		t.Fatalf("unexpected persisted settings: %#v", values)
+	}
+}
+
+func TestPutSettingsRejectsInvalidProxyAndTimeout(t *testing.T) {
+	database, err := store.Open(filepath.Join(t.TempDir(), "compose-manager.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	service := New(config.Config{DemoMode: true, OperationTimeout: 15 * time.Minute}, nil, nil, compose.NewRunner(15*time.Minute), nil, database)
+
+	if err := service.PutSettings(context.Background(), map[string]any{"proxyURL": "socks5://127.0.0.1:7890"}); err == nil {
+		t.Fatal("expected an invalid proxy to be rejected")
+	}
+	if err := service.PutSettings(context.Background(), map[string]any{"operationTimeoutMinutes": float64(1)}); err == nil {
+		t.Fatal("expected an invalid timeout to be rejected")
+	}
 }
 
 func TestSanitizeTaskLine(t *testing.T) {

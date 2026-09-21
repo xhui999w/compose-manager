@@ -126,6 +126,10 @@ SQLite 保存设置、端口访问配置、Compose 版本元数据、更新记�
 
 镜像引用解析为 registry/repository/tag。Registry client 先请求 manifest，处理 Bearer token challenge，再读取 `Docker-Content-Digest`；对 manifest list 记录列表 digest，并按本机平台解析子 manifest 作为扩展字段。Docker Hub 请求先读取 Docker Engine `/info` 中已经配置的 HTTPS registry mirrors，逐一回退后才直连官方仓库；只接受无用户信息、无路径前缀的 HTTPS mirror。凭据来自服务端 registry 配置，不下发前端。
 
+- 镜像清单与 Digest 检查可使用设置页配置的可选 HTTP/HTTPS 代理；代理地址不会写死在镜像或前端构建中。
+- `docker compose pull` 由 Docker Engine 执行，沿用 NAS Docker 守护进程的代理设置，与上述“检查代理”相互独立。
+- 下载镜像、重建容器等 Compose 单阶段操作默认超时 15 分钟，允许在 2～60 分钟范围内调整；新设置只影响之后启动的任务。
+
 - 后端启动后立即检查一次，此后由单一后台任务每 24 小时检查。
 - 本地 RepoDigest 与远端 digest 不同即提示；缺少 Digest、认证失败或限流时保持 unknown。
 - 自动任务只写入内存状态和审计事件，永不进入 pull/apply。

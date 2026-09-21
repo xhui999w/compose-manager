@@ -17,12 +17,28 @@ var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`)
 var progressLineBreakPattern = regexp.MustCompile(`\r\n?|\n`)
 
 type Runner struct {
-	binary  string
-	timeout time.Duration
-	locks   sync.Map
+	binary    string
+	timeoutMu sync.RWMutex
+	timeout   time.Duration
+	locks     sync.Map
 }
 
 func NewRunner(timeout time.Duration) *Runner { return &Runner{binary: "docker", timeout: timeout} }
+
+func (r *Runner) SetTimeout(timeout time.Duration) {
+	if timeout <= 0 {
+		return
+	}
+	r.timeoutMu.Lock()
+	r.timeout = timeout
+	r.timeoutMu.Unlock()
+}
+
+func (r *Runner) Timeout() time.Duration {
+	r.timeoutMu.RLock()
+	defer r.timeoutMu.RUnlock()
+	return r.timeout
+}
 
 func (r *Runner) Run(ctx context.Context, projectKey, file, action, service string, tail int) (string, error) {
 	return r.RunWithProgress(ctx, projectKey, file, action, service, tail, nil)
@@ -68,7 +84,8 @@ func (r *Runner) RunWithProgress(ctx context.Context, projectKey, file, action, 
 	lock := lockValue.(*sync.Mutex)
 	lock.Lock()
 	defer lock.Unlock()
-	commandCtx, cancel := context.WithTimeout(ctx, r.timeout)
+	timeout := r.Timeout()
+	commandCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(commandCtx, r.binary, args...)
 	output := &progressWriter{remaining: 1 << 20, onOutput: onOutput}
@@ -77,7 +94,7 @@ func (r *Runner) RunWithProgress(ctx context.Context, projectKey, file, action, 
 	err := cmd.Run()
 	output.Flush()
 	if commandCtx.Err() == context.DeadlineExceeded {
-		return output.String(), fmt.Errorf("Compose action timed out after %s", r.timeout)
+		return output.String(), fmt.Errorf("Compose action timed out after %s", timeout)
 	}
 	if err != nil {
 		return output.String(), fmt.Errorf("Compose action failed: %w", err)

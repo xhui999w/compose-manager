@@ -2,6 +2,21 @@ package update
 
 import "testing"
 
+func TestParseProxyURL(t *testing.T) {
+	valid := []string{"", "http://192.168.31.126:7890", "https://proxy.example.com:8443"}
+	for _, value := range valid {
+		if _, err := ParseProxyURL(value); err != nil {
+			t.Fatalf("ParseProxyURL(%q): %v", value, err)
+		}
+	}
+	invalid := []string{"socks5://192.168.1.2:7890", "http://user:pass@proxy:7890", "http://proxy:7890/path", "not-a-url"}
+	for _, value := range invalid {
+		if _, err := ParseProxyURL(value); err == nil {
+			t.Fatalf("ParseProxyURL(%q) unexpectedly succeeded", value)
+		}
+	}
+}
+
 func TestParseReference(t *testing.T) {
 	tests := []struct{ input, registry, repository, tag string }{
 		{"postgres:17.6", "registry-1.docker.io", "library/postgres", "17.6"},
