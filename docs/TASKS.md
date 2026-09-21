@@ -58,6 +58,7 @@
 - [x] 镜像列表、tag/digest/size/time。
 - [x] 运行/停止容器与 Compose 文件引用图。
 - [~] 分类、预计可释放空间和筛选（基础分类已完成；“疑似更新残留”的 layer 级识别待真实 Docker 数据完善）。
+- [x] 修复无引用镜像空值导致的白屏；提供运行中、异常/停止、Compose 引用、多余/可删除与 Dangling 快捷筛选。
 - [x] 删除确认与执行前服务端二次检查。
 
 验收：任何引用存在时默认拒绝删除；不提供自动清理。
@@ -69,6 +70,7 @@
 - [x] Registry manifest digest 检查、Bearer challenge 与 unknown 状态。
 - [x] 复用 Docker Engine 的 HTTPS registry mirrors，并将检查结果同步到容器页。
 - [x] 容器页改为默认 24 项的高密度卡片网格，提供总数/运行/停止/更新概览与筛选。
+- [x] 按使用反馈移除容器 Inspect 按钮、抽屉和后端接口。
 - [~] pull → up 流水线（已完成；基于 healthcheck 的等待/失败回退待真实主机集成验证）。
 - [x] 旧/新镜像与 digest、结果、错误记录。
 - [x] 更新记录页面。

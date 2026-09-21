@@ -45,7 +45,7 @@ compose-manager/
 
 后端使用 Docker 官方 Go client，经 `DOCKER_HOST` 连接；默认 Unix Socket，兼容 Windows named pipe/TCP 配置。使用 API version negotiation。
 
-读取接口：`Info`、`ContainerList`、`ContainerInspect`、`ContainerStats(one-shot)`、`ImageList`、`ImageInspectWithRaw`。写接口限定为容器 start/stop/restart、image pull/remove。前端只传对象 ID 和动作枚举；后端验证后调用 SDK，不接受命令字符串。
+读取接口：`Info`、`ContainerList`、`ContainerStats(one-shot)`、`ImageList`、`ImageInspectWithRaw`。写接口限定为容器 start/stop/restart、image pull/remove。前端只传对象 ID 和动作枚举；后端验证后调用 SDK，不接受命令字符串。
 
 连接失败是可恢复状态：健康 API 返回服务可用但 Docker 状态 degraded，列表 API 返回稳定错误码 `DOCKER_UNAVAILABLE`。
 
@@ -157,7 +157,7 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 - `GET /compose/projects/{key}/logs`
 - `GET|POST /compose/projects/{key}/file`, `POST .../validate`, `POST .../apply`
 - `GET /compose/projects/{key}/versions`, `POST .../versions/{id}/restore`
-- `GET /containers`, `POST /containers/{id}/actions`, `GET /containers/{id}/inspect`
+- `GET /containers`, `POST /containers/{id}/actions`, `GET /containers/{id}/logs`
 - `GET /images`, `DELETE /images/{id}`
 - `GET /updates`, `POST /updates/run`
 - `GET|PUT /settings`, `GET|PUT /access-links`

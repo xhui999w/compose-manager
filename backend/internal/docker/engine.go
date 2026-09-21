@@ -194,14 +194,6 @@ func (e *Engine) ContainerAction(ctx context.Context, id, action string) error {
 	return e.request(ctx, http.MethodPost, path, nil, nil)
 }
 
-func (e *Engine) InspectContainer(ctx context.Context, id string) (map[string]any, error) {
-	result := map[string]any{}
-	if err := e.request(ctx, http.MethodGet, "/containers/"+url.PathEscape(id)+"/json", nil, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 func (e *Engine) ContainerLogs(ctx context.Context, id string, tail int) (string, error) {
 	if tail < 1 {
 		tail = 500

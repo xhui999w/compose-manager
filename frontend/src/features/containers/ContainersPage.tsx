@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FileSearchOutlined, FileTextOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
+import { FileTextOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, Button, Drawer, Empty, Input, Pagination, Popconfirm, Select, Spin, Tag, Tooltip, message } from 'antd'
 import { api } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
@@ -14,11 +14,10 @@ type ContainerCardProps = {
   container: Container
   onAction: (container: Container, operation: string) => Promise<void>
   onLogs: (container: Container) => Promise<void>
-  onInspect: (container: Container) => Promise<void>
   onUpdate: (container: Container) => Promise<void>
 }
 
-function ContainerCard({ container, onAction, onLogs, onInspect, onUpdate }: ContainerCardProps) {
+function ContainerCard({ container, onAction, onLogs, onUpdate }: ContainerCardProps) {
   const running = container.state === 'running'
   const ports = [...new Set(container.ports.filter((port) => port.publicPort).map((port) => `${port.publicPort}:${port.privatePort}`))].join(', ')
   const project = container.project || '非 Compose'
@@ -49,7 +48,6 @@ function ContainerCard({ container, onAction, onLogs, onInspect, onUpdate }: Con
         )}
         <Tooltip title="重启"><Button size="small" icon={<SyncOutlined />} aria-label={`重启 ${container.name}`} onClick={() => void onAction(container, 'restart')} /></Tooltip>
         <Tooltip title="日志"><Button size="small" icon={<FileTextOutlined />} aria-label={`查看 ${container.name} 日志`} onClick={() => void onLogs(container)} /></Tooltip>
-        <Tooltip title="Inspect"><Button size="small" icon={<FileSearchOutlined />} aria-label={`Inspect ${container.name}`} onClick={() => void onInspect(container)} /></Tooltip>
         {container.updateStatus === 'available' && container.project ? (
           <Popconfirm title={`更新 ${container.name}？`} description="将按所属 Compose 项目拉取并重新应用。" onConfirm={() => void onUpdate(container)}>
             <Tooltip title="确认更新"><Button size="small" className="action-update" icon={<UploadOutlined />} aria-label={`更新 ${container.name}`} /></Tooltip>
@@ -68,8 +66,6 @@ export function ContainersPage() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [logContainer, setLogContainer] = useState<Container>()
   const [logs, setLogs] = useState('')
-  const [inspectContainer, setInspectContainer] = useState<Container>()
-  const [inspect, setInspect] = useState('')
   const { data = [], error, loading, refresh } = useResource(api.containers, [])
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -101,11 +97,6 @@ export function ContainersPage() {
     try { setLogs((await api.containerLogs(container.id)).logs) }
     catch (reason) { setLogs(reason instanceof Error ? reason.message : '日志读取失败') }
   }
-  const showInspect = async (container: Container) => {
-    setInspectContainer(container); setInspect('正在读取…')
-    try { setInspect(JSON.stringify(await api.inspectContainer(container.id), null, 2)) }
-    catch (reason) { setInspect(reason instanceof Error ? reason.message : 'Inspect 读取失败') }
-  }
   const update = async (container: Container) => {
     if (!container.project) return
     try { await api.runUpdate(container.project, container.service ?? ''); messageApi.success(`${container.name} 更新完成`); await refresh() }
@@ -133,11 +124,10 @@ export function ContainersPage() {
       </div>
       {error ? <Alert className="inline-alert" type="warning" showIcon title="容器数据不可用" description={error.message} /> : null}
       <Spin spinning={loading}>
-        {visible.length ? <div className="container-grid">{visible.map((item) => <ContainerCard key={item.id} container={item} onAction={action} onLogs={showLogs} onInspect={showInspect} onUpdate={update} />)}</div> : <Empty className="container-empty" description="没有符合条件的容器" />}
+        {visible.length ? <div className="container-grid">{visible.map((item) => <ContainerCard key={item.id} container={item} onAction={action} onLogs={showLogs} onUpdate={update} />)}</div> : <Empty className="container-empty" description="没有符合条件的容器" />}
       </Spin>
       {filtered.length > pageSize ? <Pagination className="container-pagination" current={page} pageSize={pageSize} total={filtered.length} showSizeChanger pageSizeOptions={[18, 24, 30, 60]} showTotal={(total) => `共 ${total} 个容器`} onChange={(nextPage, nextPageSize) => { setPage(nextPageSize === pageSize ? nextPage : 1); setPageSize(nextPageSize) }} /> : null}
       <Drawer width="min(820px, 90vw)" open={Boolean(logContainer)} title={`${logContainer?.name ?? ''} 日志`} onClose={() => setLogContainer(undefined)}><pre className="log-view">{logs}</pre></Drawer>
-      <Drawer width="min(820px, 90vw)" open={Boolean(inspectContainer)} title={`${inspectContainer?.name ?? ''} Inspect`} onClose={() => setInspectContainer(undefined)}><pre className="log-view">{inspect}</pre></Drawer>
     </section>
   )
 }

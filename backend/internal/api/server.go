@@ -51,7 +51,6 @@ func (s *Server) routes(static http.Handler) {
 	s.mux.HandleFunc("POST /api/v1/compose/projects/{key}/versions/{id}/restore", s.restore)
 	s.mux.HandleFunc("GET /api/v1/containers", s.containers)
 	s.mux.HandleFunc("POST /api/v1/containers/{id}/actions", s.containerAction)
-	s.mux.HandleFunc("GET /api/v1/containers/{id}/inspect", s.inspectContainer)
 	s.mux.HandleFunc("GET /api/v1/containers/{id}/logs", s.containerLogs)
 	s.mux.HandleFunc("GET /api/v1/images", s.images)
 	s.mux.HandleFunc("DELETE /api/v1/images/{id}", s.deleteImage)
@@ -317,15 +316,6 @@ func (s *Server) containerAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-}
-
-func (s *Server) inspectContainer(w http.ResponseWriter, r *http.Request) {
-	result, err := s.service.InspectContainer(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "CONTAINER_INSPECT_FAILED", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 
 func (s *Server) containerLogs(w http.ResponseWriter, r *http.Request) {

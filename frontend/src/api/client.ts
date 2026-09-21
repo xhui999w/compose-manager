@@ -56,7 +56,6 @@ export const api = {
   restore: (key: string, id: number, baseSha: string, apply: boolean) => request(`/compose/projects/${encodeURIComponent(key)}/versions/${id}/restore`, { method: 'POST', body: JSON.stringify({ baseSha, apply }) }),
   containers: async () => (await request<Envelope<Container[]>>('/containers')).data,
   containerAction: (id: string, action: string) => request(`/containers/${encodeURIComponent(id)}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
-  inspectContainer: async (id: string) => (await request<Envelope<Record<string, unknown>>>(`/containers/${encodeURIComponent(id)}/inspect`)).data,
   containerLogs: (id: string) => request<{ logs: string }>(`/containers/${encodeURIComponent(id)}/logs?tail=500`),
   images: async () => (await request<Envelope<ImageReference[]>>('/images')).data,
   deleteImage: (id: string) => request(`/images/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' }),

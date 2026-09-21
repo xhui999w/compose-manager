@@ -258,13 +258,6 @@ func (s *Service) ContainerAction(ctx context.Context, id, action string) error 
 	return err
 }
 
-func (s *Service) InspectContainer(ctx context.Context, id string) (map[string]any, error) {
-	if s.config.DemoMode {
-		return map[string]any{"Id": id, "Name": "/demo-container", "State": map[string]any{"Status": "running", "Running": true}, "Config": map[string]any{"Image": "ghcr.io/example/demo:latest"}}, nil
-	}
-	return s.docker.InspectContainer(ctx, id)
-}
-
 func (s *Service) ContainerLogs(ctx context.Context, id string, tail int) (string, error) {
 	if s.config.DemoMode {
 		return "2026-09-19T10:00:00Z container started\n2026-09-19T10:00:01Z health check passed\n", nil
@@ -284,6 +277,7 @@ func (s *Service) Images(ctx context.Context) ([]model.ImageReference, error) {
 	projects, _ := s.discovery.Scan(ctx)
 	for index := range images {
 		image := &images[index]
+		normalizeImageReferences(image)
 		s.updateMu.RLock()
 		if cached, ok := s.updateMap[canonicalImageRef(image.Repository+":"+image.Tag)]; ok {
 			image.UpdateStatus = cached
@@ -317,25 +311,41 @@ func (s *Service) DeleteImage(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	found := false
+	running := map[string]struct{}{}
+	stopped := map[string]struct{}{}
+	compose := map[string]struct{}{}
 	for _, image := range images {
 		if image.ID != id {
 			continue
 		}
-		if len(image.RunningReferences)+len(image.StoppedReferences)+len(image.ComposeReferences) > 0 {
-			return fmt.Errorf("image is still referenced by running=%d stopped=%d compose=%d", len(image.RunningReferences), len(image.StoppedReferences), len(image.ComposeReferences))
+		found = true
+		for _, value := range image.RunningReferences {
+			running[value] = struct{}{}
 		}
-		if s.config.DemoMode {
-			return errors.New("demo mode is read-only")
+		for _, value := range image.StoppedReferences {
+			stopped[value] = struct{}{}
 		}
-		err := s.docker.DeleteImage(ctx, id)
-		status := "success"
-		if err != nil {
-			status = "failed"
+		for _, value := range image.ComposeReferences {
+			compose[value] = struct{}{}
 		}
-		_ = s.store.Audit(ctx, "image.delete", "image", id, status, "reference counts rechecked")
-		return err
 	}
-	return errors.New("image not found")
+	if !found {
+		return errors.New("image not found")
+	}
+	if len(running)+len(stopped)+len(compose) > 0 {
+		return fmt.Errorf("image is still referenced by running=%d stopped=%d compose=%d", len(running), len(stopped), len(compose))
+	}
+	if s.config.DemoMode {
+		return errors.New("demo mode is read-only")
+	}
+	err = s.docker.DeleteImage(ctx, id)
+	status := "success"
+	if err != nil {
+		status = "failed"
+	}
+	_ = s.store.Audit(ctx, "image.delete", "image", id, status, "reference counts rechecked across all tags")
+	return err
 }
 
 func (s *Service) CheckImageUpdates(ctx context.Context) ([]model.ImageReference, error) {
@@ -594,6 +604,18 @@ func classifyImage(image *model.ImageReference) {
 	default:
 		image.Category = "unused"
 		image.Reclaimable = image.Size
+	}
+}
+
+func normalizeImageReferences(image *model.ImageReference) {
+	if image.RunningReferences == nil {
+		image.RunningReferences = []string{}
+	}
+	if image.StoppedReferences == nil {
+		image.StoppedReferences = []string{}
+	}
+	if image.ComposeReferences == nil {
+		image.ComposeReferences = []string{}
 	}
 }
 
