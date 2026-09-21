@@ -16,7 +16,7 @@ const categoryLabels: Record<string, string> = {
   'compose-referenced': 'Compose 已引用',
   'old-version': '异常/已停止使用',
   unused: '未使用',
-  dangling: 'Dangling',
+  dangling: '悬空镜像',
   residual: '疑似更新残留',
 }
 
@@ -26,7 +26,7 @@ const filterOptions: { value: ImageFilter; label: string }[] = [
   { value: 'stopped', label: '异常/已停止使用' },
   { value: 'compose', label: 'Compose 引用' },
   { value: 'removable', label: '多余/可删除' },
-  { value: 'dangling', label: 'Dangling' },
+  { value: 'dangling', label: '悬空镜像' },
 ]
 
 function emptyUsage(): ImageUsage {
@@ -192,15 +192,15 @@ export function ImagesPage() {
   }
 
   const columns = useMemo<ColumnsType<ImageReference>>(() => [
-    { title: 'Repository', dataIndex: 'repository', width: 210, fixed: 'left', sorter: (a, b) => a.repository.localeCompare(b.repository), render: (value) => <strong>{value}</strong> },
-    { title: 'Tag', dataIndex: 'tag', width: 100 },
-    { title: 'Image ID', dataIndex: 'id', width: 130, render: shortDigest },
-    { title: 'Digest', dataIndex: 'digest', width: 160, ellipsis: true, render: shortDigest },
+    { title: '镜像仓库', dataIndex: 'repository', width: 210, fixed: 'left', sorter: (a, b) => a.repository.localeCompare(b.repository), render: (value) => <strong>{value === '<none>' ? '无标签仓库' : value}</strong> },
+    { title: '标签', dataIndex: 'tag', width: 100, render: (value) => value === '<none>' ? '无标签' : value },
+    { title: '镜像 ID', dataIndex: 'id', width: 130, render: shortDigest },
+    { title: '摘要', dataIndex: 'digest', width: 160, ellipsis: true, render: shortDigest },
     { title: '大小', dataIndex: 'size', width: 88, sorter: (a, b) => a.size - b.size, render: formatBytes },
     { title: '创建时间', dataIndex: 'createdAt', width: 120, render: formatDate },
     { title: '运行中', width: 82, align: 'center', render: (_, image) => <ReferenceTag references={usageByID.get(image.id)?.running ?? new Set()} color="green" emptyLabel="无运行容器引用" /> },
     { title: '异常/停止', width: 92, align: 'center', render: (_, image) => <ReferenceTag references={usageByID.get(image.id)?.stopped ?? new Set()} color="orange" emptyLabel="无异常或停止容器引用" /> },
-    { title: 'Compose', width: 86, align: 'center', render: (_, image) => <ReferenceTag references={usageByID.get(image.id)?.compose ?? new Set()} color="blue" emptyLabel="无 Compose 引用" /> },
+    { title: 'Compose 引用', width: 96, align: 'center', render: (_, image) => <ReferenceTag references={usageByID.get(image.id)?.compose ?? new Set()} color="blue" emptyLabel="无 Compose 引用" /> },
     { title: '更新', dataIndex: 'updateStatus', width: 104, render: (value) => value === 'available' ? <Tag color="gold">有更新</Tag> : value === 'current' ? <Tag color="green">最新</Tag> : <Tag>等待检查</Tag> },
     { title: '分类', dataIndex: 'category', width: 132, render: (value) => <Tag>{categoryLabels[value] ?? value}</Tag> },
     { title: '操作', fixed: 'right', width: 80, render: (_, image) => <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => openDelete([image])}>删除</Button> },
@@ -226,7 +226,7 @@ export function ImagesPage() {
       </div>
       <div className="table-toolbar image-table-toolbar">
         <Space>
-          <Input allowClear className="search-input" prefix={<SearchOutlined />} placeholder="搜索 Repository 或 Tag…" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Input allowClear className="search-input" prefix={<SearchOutlined />} placeholder="搜索镜像仓库或标签…" value={query} onChange={(event) => setQuery(event.target.value)} />
           <Select<ImageFilter> value={filter} onChange={selectFilter} options={filterOptions} />
         </Space>
         <Space>
