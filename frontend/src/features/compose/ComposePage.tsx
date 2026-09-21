@@ -42,6 +42,15 @@ export function ComposePage() {
     }
   }
 
+  const startUpdate = async (project: Project) => {
+    try {
+      await api.runUpdate(project.key)
+      messageApi.success(`${project.name} 已开始更新，请在左侧“更新进度”查看`)
+    } catch (reason) {
+      messageApi.error(reason instanceof Error ? reason.message : '无法开始更新')
+    }
+  }
+
   const columns: ColumnsType<Project> = [
     { title: '项目名称', dataIndex: 'name', width: 145, sorter: (a, b) => a.name.localeCompare(b.name), render: (name, project) => <div className="project-name"><span className="project-icon"><CaretRightOutlined /></span><div><strong>{name}</strong><small>{project.discoverySource}</small></div></div> },
     { title: '运行状态', dataIndex: 'status', width: 76, align: 'center', sorter: (a, b) => Number(a.status === 'running') - Number(b.status === 'running'), defaultSortOrder: 'ascend', sortDirections: ['ascend', 'descend', 'ascend'], render: (value) => <StateBadge state={value} /> },
@@ -56,7 +65,7 @@ export function ComposePage() {
             <Button aria-label={`停止 ${project.name}`} danger type="text" size="small" icon={<PauseOutlined />} disabled={project.status === 'stopped'} loading={busyKey === `${project.key}:stop`} />
           </Popconfirm>
           <Tooltip title="重启"><Button aria-label={`重启 ${project.name}`} type="text" size="small" icon={<SyncOutlined />} loading={busyKey === `${project.key}:restart`} onClick={() => void runAction(project, 'restart')} /></Tooltip>
-          <Popconfirm title={`更新 ${project.name}？`} description="将拉取镜像、重新创建容器并记录结果。" okText="更新" cancelText="取消" onConfirm={() => void api.runUpdate(project.key).then(refresh)}>
+          <Popconfirm title={`更新 ${project.name}？`} description="将拉取镜像、重新创建容器并记录结果。" okText="更新" cancelText="取消" onConfirm={() => void startUpdate(project)}>
             <Tooltip title="更新"><Button aria-label={`更新 ${project.name}`} type="text" size="small" icon={<UploadOutlined />} /></Tooltip>
           </Popconfirm>
           <Tooltip title="编辑"><Button aria-label={`编辑 ${project.name}`} type="text" size="small" icon={<EditOutlined />} disabled={!project.editable} onClick={() => setEditorProject(project)} /></Tooltip>

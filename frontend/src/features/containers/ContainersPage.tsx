@@ -92,8 +92,8 @@ export function ContainersPage() {
   }
   const update = async (container: Container) => {
     if (!container.project) return
-    try { await api.runUpdate(container.project, container.service ?? ''); messageApi.success(`${container.name} 更新完成`); await refresh() }
-    catch (reason) { messageApi.error(reason instanceof Error ? reason.message : '更新失败') }
+    try { await api.runUpdate(container.project, container.service ?? ''); messageApi.success(`${container.name} 已开始更新，请在左侧“更新进度”查看`) }
+    catch (reason) { messageApi.error(reason instanceof Error ? reason.message : '无法开始更新') }
   }
 
   return (

@@ -88,6 +88,21 @@ type UpdateRecord struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type UpdateTask struct {
+	ID         string     `json:"id"`
+	Project    string     `json:"project"`
+	Service    string     `json:"service"`
+	Status     string     `json:"status"`
+	Stage      string     `json:"stage"`
+	Progress   int        `json:"progress"`
+	Message    string     `json:"message"`
+	Output     []string   `json:"output"`
+	Error      string     `json:"error,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+}
+
 type ComposeVersion struct {
 	ID         int64     `json:"id"`
 	ProjectKey string    `json:"projectKey"`

@@ -55,6 +55,7 @@ func (s *Server) routes(static http.Handler) {
 	s.mux.HandleFunc("GET /api/v1/images", s.images)
 	s.mux.HandleFunc("DELETE /api/v1/images/{id}", s.deleteImage)
 	s.mux.HandleFunc("GET /api/v1/updates", s.updates)
+	s.mux.HandleFunc("GET /api/v1/updates/tasks", s.updateTasks)
 	s.mux.HandleFunc("POST /api/v1/updates/run", s.runUpdate)
 	s.mux.HandleFunc("GET /api/v1/settings", s.settings)
 	s.mux.HandleFunc("PUT /api/v1/settings", s.putSettings)
@@ -366,12 +367,20 @@ func (s *Server) runUpdate(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := s.service.RunUpdate(r.Context(), request.Project, request.Service)
+	result, err := s.service.StartUpdate(r.Context(), request.Project, request.Service)
 	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, "UPDATE_FAILED", err)
+		status, code := http.StatusUnprocessableEntity, "UPDATE_FAILED"
+		if errors.Is(err, app.ErrUpdateAlreadyRunning) {
+			status, code = http.StatusConflict, "UPDATE_ALREADY_RUNNING"
+		}
+		writeError(w, status, code, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+	writeJSON(w, http.StatusAccepted, map[string]any{"data": result})
+}
+
+func (s *Server) updateTasks(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"data": s.service.UpdateTasks()})
 }
 
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {

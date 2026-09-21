@@ -1,4 +1,4 @@
-import type { AuthStatus, ComposeFile, ComposeVersion, Container, ImageReference, Project, SystemInfo, UpdateRecord } from '../types'
+import type { AuthStatus, ComposeFile, ComposeVersion, Container, ImageReference, Project, SystemInfo, UpdateRecord, UpdateTask } from '../types'
 
 type Envelope<T> = { data: T; warning?: string | null }
 type APIErrorPayload = { error?: { code?: string; message?: string } }
@@ -60,7 +60,8 @@ export const api = {
   images: async () => (await request<Envelope<ImageReference[]>>('/images')).data,
   deleteImage: (id: string) => request(`/images/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' }),
   updates: async () => (await request<Envelope<UpdateRecord[]>>('/updates')).data,
-  runUpdate: (project: string, service = '') => request('/updates/run', { method: 'POST', body: JSON.stringify({ project, service }) }),
+  updateTasks: async () => (await request<Envelope<UpdateTask[]>>('/updates/tasks')).data,
+  runUpdate: async (project: string, service = '') => (await request<Envelope<UpdateTask>>('/updates/run', { method: 'POST', body: JSON.stringify({ project, service }) })).data,
   settings: async () => (await request<Envelope<Record<string, unknown>>>('/settings')).data,
   putSettings: (values: Record<string, unknown>) => request('/settings', { method: 'PUT', body: JSON.stringify(values) }),
 }

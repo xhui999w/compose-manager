@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react'
-import { ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
+import { CloudDownloadOutlined, ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
 import { Button, Layout, Menu, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { SystemStatusBar } from './SystemStatusBar'
 
-export type PageKey = 'compose' | 'containers' | 'images' | 'updates' | 'settings'
+export type PageKey = 'compose' | 'containers' | 'images' | 'progress' | 'updates' | 'settings'
 
 const items: MenuProps['items'] = [
   { key: 'compose', icon: <ClusterOutlined />, label: 'Compose' },
   { key: 'containers', icon: <ContainerOutlined />, label: '容器' },
   { key: 'images', icon: <DatabaseOutlined />, label: '镜像' },
+  { key: 'progress', icon: <CloudDownloadOutlined />, label: '更新进度' },
   { key: 'updates', icon: <FileTextOutlined />, label: '更新记录' },
   { key: 'settings', icon: <SettingOutlined />, label: '设置' },
 ]

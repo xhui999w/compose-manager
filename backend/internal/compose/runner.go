@@ -14,6 +14,7 @@ import (
 )
 
 var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`)
+var progressLineBreakPattern = regexp.MustCompile(`\r\n?|\n`)
 
 type Runner struct {
 	binary  string
@@ -24,6 +25,10 @@ type Runner struct {
 func NewRunner(timeout time.Duration) *Runner { return &Runner{binary: "docker", timeout: timeout} }
 
 func (r *Runner) Run(ctx context.Context, projectKey, file, action, service string, tail int) (string, error) {
+	return r.RunWithProgress(ctx, projectKey, file, action, service, tail, nil)
+}
+
+func (r *Runner) RunWithProgress(ctx context.Context, projectKey, file, action, service string, tail int, onOutput func(string)) (string, error) {
 	if !identifierPattern.MatchString(projectKey) {
 		return "", errors.New("invalid project identifier")
 	}
@@ -66,10 +71,11 @@ func (r *Runner) Run(ctx context.Context, projectKey, file, action, service stri
 	commandCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	cmd := exec.CommandContext(commandCtx, r.binary, args...)
-	var output bytes.Buffer
-	cmd.Stdout = &limitedWriter{writer: &output, remaining: 1 << 20}
-	cmd.Stderr = &limitedWriter{writer: &output, remaining: 1 << 20}
+	output := &progressWriter{remaining: 1 << 20, onOutput: onOutput}
+	cmd.Stdout = output
+	cmd.Stderr = output
 	err := cmd.Run()
+	output.Flush()
 	if commandCtx.Err() == context.DeadlineExceeded {
 		return output.String(), fmt.Errorf("Compose action timed out after %s", r.timeout)
 	}
@@ -79,12 +85,17 @@ func (r *Runner) Run(ctx context.Context, projectKey, file, action, service stri
 	return output.String(), nil
 }
 
-type limitedWriter struct {
-	writer    *bytes.Buffer
+type progressWriter struct {
+	mu        sync.Mutex
+	output    bytes.Buffer
+	pending   string
 	remaining int
+	onOutput  func(string)
 }
 
-func (w *limitedWriter) Write(p []byte) (int, error) {
+func (w *progressWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	original := len(p)
 	if w.remaining <= 0 {
 		return original, nil
@@ -93,6 +104,41 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 		p = p[:w.remaining]
 	}
 	w.remaining -= len(p)
-	_, _ = w.writer.Write(p)
+	_, _ = w.output.Write(p)
+	if w.onOutput != nil {
+		w.pending += string(p)
+		w.emitLines(false)
+	}
 	return original, nil
+}
+
+func (w *progressWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.emitLines(true)
+}
+
+func (w *progressWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.output.String()
+}
+
+func (w *progressWriter) emitLines(flush bool) {
+	w.pending = progressLineBreakPattern.ReplaceAllString(w.pending, "\n")
+	parts := bytes.Split([]byte(w.pending), []byte("\n"))
+	limit := len(parts) - 1
+	if flush {
+		limit = len(parts)
+	}
+	for index := 0; index < limit; index++ {
+		if line := string(parts[index]); line != "" {
+			w.onOutput(line)
+		}
+	}
+	if flush {
+		w.pending = ""
+	} else {
+		w.pending = string(parts[len(parts)-1])
+	}
 }

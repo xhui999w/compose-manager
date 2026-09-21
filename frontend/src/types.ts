@@ -78,6 +78,21 @@ export type UpdateRecord = {
   createdAt: string
 }
 
+export type UpdateTask = {
+  id: string
+  project: string
+  service: string
+  status: 'queued' | 'running' | 'success' | 'failed'
+  stage: 'queued' | 'pulling' | 'applying' | 'checking' | 'completed' | 'failed'
+  progress: number
+  message: string
+  output: string[]
+  error?: string
+  createdAt: string
+  updatedAt: string
+  finishedAt?: string
+}
+
 export type ComposeFile = { path: string; content: string; sha256: string }
 export type ComposeVersion = { id: number; projectKey: string; filePath: string; sha256: string; createdAt: string }
 

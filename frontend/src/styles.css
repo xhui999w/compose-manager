@@ -132,6 +132,11 @@ button, input, select, textarea { font: inherit; }
 .image-table-toolbar > .ant-space:last-child { margin-left: auto; }
 .modal-alert { margin-top: 14px; }
 
+.update-progress-cell { display: grid; grid-template-columns: minmax(150px, 1fr) 100px; align-items: center; gap: 9px; }
+.update-progress-cell .ant-progress { margin: 0; }
+.update-progress-cell .ant-typography { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.update-output { max-height: 310px; margin: 0; overflow: auto; padding: 10px 12px; border: 1px solid #273449; border-radius: 5px; background: #111827; color: #d7e0ee; font: 11px/1.55 "Cascadia Code", "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+
 .settings-page { min-width: 720px; max-width: 1080px; }
 .settings-page form { padding: 18px 18px 6px; border: 1px solid #dfe5ed; border-radius: 5px; background: #fff; }
 .settings-section h2 { margin: 0 0 18px; color: #253047; font-size: 14px; }

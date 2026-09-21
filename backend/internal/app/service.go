@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -20,20 +23,23 @@ import (
 )
 
 type Service struct {
-	config    config.Config
-	docker    *dockerapi.Engine
-	discovery *compose.Discovery
-	guard     *compose.PathGuard
-	runner    *compose.Runner
-	editor    *compose.Editor
-	store     *store.Store
-	checker   *update.RegistryChecker
-	updateMu  sync.RWMutex
-	updateMap map[string]string
+	config        config.Config
+	docker        *dockerapi.Engine
+	discovery     *compose.Discovery
+	guard         *compose.PathGuard
+	runner        *compose.Runner
+	editor        *compose.Editor
+	store         *store.Store
+	checker       *update.RegistryChecker
+	updateMu      sync.RWMutex
+	updateMap     map[string]string
+	taskMu        sync.RWMutex
+	updateTasks   map[string]*model.UpdateTask
+	activeUpdates map[string]string
 }
 
 func New(cfg config.Config, engine *dockerapi.Engine, guard *compose.PathGuard, runner *compose.Runner, editor *compose.Editor, store *store.Store) *Service {
-	return &Service{config: cfg, docker: engine, discovery: compose.NewDiscovery(guard), guard: guard, runner: runner, editor: editor, store: store, checker: update.NewRegistryChecker(), updateMap: map[string]string{}}
+	return &Service{config: cfg, docker: engine, discovery: compose.NewDiscovery(guard), guard: guard, runner: runner, editor: editor, store: store, checker: update.NewRegistryChecker(), updateMap: map[string]string{}, updateTasks: map[string]*model.UpdateTask{}, activeUpdates: map[string]string{}}
 }
 
 func (s *Service) Health(ctx context.Context) map[string]any {
@@ -418,39 +424,206 @@ func (s *Service) enrichContainerUpdates(containers []model.Container) {
 	}
 }
 
-func (s *Service) RunUpdate(ctx context.Context, key, service string) (model.UpdateRecord, error) {
+var ErrUpdateAlreadyRunning = errors.New("update task is already running")
+
+func (s *Service) StartUpdate(ctx context.Context, key, service string) (model.UpdateTask, error) {
 	project, err := s.Project(ctx, key)
 	if err != nil {
-		return model.UpdateRecord{}, err
+		return model.UpdateTask{}, err
 	}
-	record := model.UpdateRecord{Project: key, Service: service, Status: "running"}
+	if project.ConfigFile == "" && !s.config.DemoMode {
+		return model.UpdateTask{}, errors.New("Compose file path is unavailable")
+	}
+	id, err := updateTaskID()
+	if err != nil {
+		return model.UpdateTask{}, err
+	}
+	now := time.Now().UTC()
+	task := &model.UpdateTask{ID: id, Project: key, Service: service, Status: "queued", Stage: "queued", Progress: 0, Message: "等待开始", Output: []string{}, CreatedAt: now, UpdatedAt: now}
+	taskKey := key
+	s.taskMu.Lock()
+	if _, exists := s.activeUpdates[taskKey]; exists {
+		s.taskMu.Unlock()
+		return model.UpdateTask{}, ErrUpdateAlreadyRunning
+	}
+	s.pruneUpdateTasksLocked(100)
+	s.updateTasks[id] = task
+	s.activeUpdates[taskKey] = id
+	result := cloneUpdateTask(task)
+	s.taskMu.Unlock()
+	go s.runUpdateTask(id, taskKey)
+	return result, nil
+}
+
+func (s *Service) UpdateTasks() []model.UpdateTask {
+	s.taskMu.RLock()
+	result := make([]model.UpdateTask, 0, len(s.updateTasks))
+	for _, task := range s.updateTasks {
+		result = append(result, cloneUpdateTask(task))
+	}
+	s.taskMu.RUnlock()
+	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
+	return result
+}
+
+func (s *Service) runUpdateTask(id, taskKey string) {
+	timeout := s.config.OperationTimeout * 3
+	if timeout <= 0 {
+		timeout = 6 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	s.setUpdateTask(id, "running", "pulling", 8, "正在下载镜像", "")
 	if s.config.DemoMode {
-		record.Status = "success"
-		record.OldImage = "demo/app:latest"
-		record.NewImage = "demo/app:latest"
-		return s.store.AddUpdate(ctx, record)
+		time.Sleep(150 * time.Millisecond)
+		s.appendUpdateTaskOutput(id, "演示模式：镜像下载完成")
+		s.setUpdateTask(id, "running", "applying", 72, "正在重新创建容器", "")
+		time.Sleep(150 * time.Millisecond)
+		s.finishUpdateTask(id, taskKey, "success", "completed", 100, "更新完成", "")
+		return
+	}
+
+	task := s.updateTask(id)
+	project, err := s.Project(ctx, task.Project)
+	if err != nil {
+		s.finishUpdateTask(id, taskKey, "failed", "failed", task.Progress, "更新失败", err.Error())
+		return
 	}
 	beforeContainers, _ := s.docker.Containers(ctx)
 	beforeImages, _ := s.docker.Images(ctx)
-	record.OldImage, record.OldDigest = updateSnapshot(key, service, beforeContainers, beforeImages)
-	output, pullErr := s.runner.Run(ctx, key, project.ConfigFile, "pull", service, 0)
-	if pullErr == nil {
-		output, pullErr = s.runner.Run(ctx, key, project.ConfigFile, "apply", "", 0)
+	record := model.UpdateRecord{Project: task.Project, Service: task.Service, Status: "running"}
+	record.OldImage, record.OldDigest = updateSnapshot(task.Project, task.Service, beforeContainers, beforeImages)
+	output, updateErr := s.runner.RunWithProgress(ctx, task.Project, project.ConfigFile, "pull", task.Service, 0, func(line string) { s.appendUpdateTaskOutput(id, line) })
+	if updateErr == nil {
+		s.setUpdateTask(id, "running", "applying", 72, "正在重新创建容器", "")
+		output, updateErr = s.runner.RunWithProgress(ctx, task.Project, project.ConfigFile, "apply", "", 0, func(line string) { s.appendUpdateTaskOutput(id, line) })
 	}
-	if pullErr != nil {
+	if updateErr == nil {
+		s.setUpdateTask(id, "running", "checking", 92, "正在检查容器状态", "")
+		afterContainers, containersErr := s.docker.Containers(ctx)
+		afterImages, imagesErr := s.docker.Images(ctx)
+		if containersErr != nil || imagesErr != nil {
+			updateErr = errors.Join(containersErr, imagesErr)
+		} else {
+			record.NewImage, record.NewDigest = updateSnapshot(task.Project, task.Service, afterContainers, afterImages)
+		}
+	}
+	if updateErr != nil {
 		record.Status = "failed"
-		record.Error = sanitizeError(pullErr.Error() + " " + output)
-	} else {
-		record.Status = "success"
-		afterContainers, _ := s.docker.Containers(ctx)
-		afterImages, _ := s.docker.Images(ctx)
-		record.NewImage, record.NewDigest = updateSnapshot(key, service, afterContainers, afterImages)
+		record.Error = sanitizeError(updateErr.Error() + " " + output)
+		_, _ = s.store.AddUpdate(context.Background(), record)
+		s.finishUpdateTask(id, taskKey, "failed", "failed", s.updateTask(id).Progress, "更新失败", publicTaskError(updateErr))
+		return
 	}
-	record, storeErr := s.store.AddUpdate(ctx, record)
-	if storeErr != nil {
-		return record, storeErr
+	record.Status = "success"
+	if _, err := s.store.AddUpdate(context.Background(), record); err != nil {
+		s.finishUpdateTask(id, taskKey, "failed", "failed", 96, "更新记录保存失败", publicTaskError(err))
+		return
 	}
-	return record, pullErr
+	s.finishUpdateTask(id, taskKey, "success", "completed", 100, "更新完成", "")
+}
+
+func (s *Service) setUpdateTask(id, status, stage string, progress int, message, taskError string) {
+	s.taskMu.Lock()
+	defer s.taskMu.Unlock()
+	if task := s.updateTasks[id]; task != nil {
+		task.Status, task.Stage, task.Progress, task.Message, task.Error = status, stage, progress, message, sanitizeTaskLine(taskError)
+		task.UpdatedAt = time.Now().UTC()
+	}
+}
+
+func (s *Service) finishUpdateTask(id, taskKey, status, stage string, progress int, message, taskError string) {
+	now := time.Now().UTC()
+	s.taskMu.Lock()
+	if task := s.updateTasks[id]; task != nil {
+		task.Status, task.Stage, task.Progress, task.Message, task.Error = status, stage, progress, message, sanitizeTaskLine(taskError)
+		task.UpdatedAt, task.FinishedAt = now, &now
+	}
+	delete(s.activeUpdates, taskKey)
+	s.taskMu.Unlock()
+}
+
+func (s *Service) appendUpdateTaskOutput(id, line string) {
+	line = sanitizeTaskLine(line)
+	if line == "" {
+		return
+	}
+	s.taskMu.Lock()
+	if task := s.updateTasks[id]; task != nil {
+		task.Output = append(task.Output, line)
+		if len(task.Output) > 300 {
+			task.Output = append([]string(nil), task.Output[len(task.Output)-300:]...)
+		}
+		task.UpdatedAt = time.Now().UTC()
+	}
+	s.taskMu.Unlock()
+}
+
+func (s *Service) updateTask(id string) model.UpdateTask {
+	s.taskMu.RLock()
+	defer s.taskMu.RUnlock()
+	if task := s.updateTasks[id]; task != nil {
+		return cloneUpdateTask(task)
+	}
+	return model.UpdateTask{}
+}
+
+func (s *Service) pruneUpdateTasksLocked(limit int) {
+	if len(s.updateTasks) < limit {
+		return
+	}
+	var oldest *model.UpdateTask
+	for _, task := range s.updateTasks {
+		if task.Status == "queued" || task.Status == "running" {
+			continue
+		}
+		if oldest == nil || task.CreatedAt.Before(oldest.CreatedAt) {
+			oldest = task
+		}
+	}
+	if oldest != nil {
+		delete(s.updateTasks, oldest.ID)
+	}
+}
+
+func cloneUpdateTask(task *model.UpdateTask) model.UpdateTask {
+	result := *task
+	result.Output = append([]string(nil), task.Output...)
+	return result
+}
+
+func updateTaskID() (string, error) {
+	raw := make([]byte, 12)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate update task id: %w", err)
+	}
+	return hex.EncodeToString(raw), nil
+}
+
+var taskANSI = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+var taskSecret = regexp.MustCompile(`(?i)(token|password|secret|authorization)=\S+`)
+
+func sanitizeTaskLine(value string) string {
+	value = taskANSI.ReplaceAllString(value, "")
+	value = taskSecret.ReplaceAllString(value, "$1=[已隐藏]")
+	value = strings.Map(func(r rune) rune {
+		if r == '\t' || r >= 32 {
+			return r
+		}
+		return -1
+	}, value)
+	value = strings.TrimSpace(value)
+	if len(value) > 500 {
+		value = value[:500]
+	}
+	return value
+}
+
+func publicTaskError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return sanitizeTaskLine(err.Error())
 }
 
 func (s *Service) Updates(ctx context.Context) ([]model.UpdateRecord, error) {

@@ -9,6 +9,7 @@ import { AppShell, type PageKey } from './AppShell'
 
 const ContainersPage = lazy(() => import('../features/containers/ContainersPage').then((module) => ({ default: module.ContainersPage })))
 const ImagesPage = lazy(() => import('../features/images/ImagesPage').then((module) => ({ default: module.ImagesPage })))
+const UpdateProgressPage = lazy(() => import('../features/updates/UpdateProgressPage').then((module) => ({ default: module.UpdateProgressPage })))
 const UpdatesPage = lazy(() => import('../features/updates/UpdatesPage').then((module) => ({ default: module.UpdatesPage })))
 const SettingsPage = lazy(() => import('../features/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 
@@ -49,6 +50,7 @@ function AuthenticatedApp({ dark, onThemeChange, username, onLogout }: { dark: b
     switch (page) {
       case 'containers': return <ContainersPage />
       case 'images': return <ImagesPage />
+      case 'progress': return <UpdateProgressPage />
       case 'updates': return <UpdatesPage />
       case 'settings': return <SettingsPage dark={dark} onThemeChange={onThemeChange} />
       default: return <ComposePage />
