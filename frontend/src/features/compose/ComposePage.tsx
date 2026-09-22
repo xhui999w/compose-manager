@@ -3,7 +3,7 @@ import {
   CaretRightOutlined, EditOutlined, FileTextOutlined, LinkOutlined, MoreOutlined, PauseOutlined,
   PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Dropdown, Empty, Input, Pagination, Popconfirm, Select, Space, Spin, Table, Tooltip, message } from 'antd'
+import { Alert, Button, Dropdown, Empty, Input, Pagination, Popconfirm, Segmented, Select, Space, Spin, Table, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { api } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
@@ -17,6 +17,14 @@ import { LogsDrawer } from './LogsDrawer'
 const PROJECT_PAGE_SIZE = 30
 
 type ProjectSort = 'issues' | 'running' | 'memory' | 'cpu' | 'name'
+
+const PROJECT_SORT_OPTIONS = [
+  { value: 'issues', label: '异常 / 停止' },
+  { value: 'running', label: '运行中' },
+  { value: 'memory', label: '内存 ↓' },
+  { value: 'cpu', label: 'CPU ↓' },
+  { value: 'name', label: '名称' },
+]
 
 function sortProjects(projects: Project[], sort: ProjectSort) {
   return [...projects].sort((a, b) => {
@@ -135,12 +143,15 @@ export function ComposePage() {
     <section className="page compose-page">
       {contextHolder}
       <PageHeader title="Compose 项目" description="每 24 小时自动检查镜像更新；发现新版后由你确认是否更新。" />
-      <div className="table-toolbar">
-        <Space size={10}>
+      <div className="table-toolbar compose-toolbar">
+        <Space className="compose-toolbar__filters" size={10}>
           <Input allowClear className="search-input" prefix={<SearchOutlined />} placeholder="搜索项目名称、路径或描述…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
           <Select value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={[{ value: 'all', label: '全部状态' }, { value: 'running', label: '运行中' }, { value: 'stopped', label: '已停止' }, { value: 'degraded', label: '异常' }, { value: 'updates', label: '有更新' }]} />
-          <Select aria-label="排序方式" className="project-sort-select" value={sort} onChange={(value) => { setSort(value); setPage(1) }} options={[{ value: 'issues', label: '异常 / 停止优先' }, { value: 'running', label: '运行中优先' }, { value: 'memory', label: '内存从高到低' }, { value: 'cpu', label: 'CPU 从高到低' }, { value: 'name', label: '名称 A–Z' }]} />
         </Space>
+        <div className="project-sort-control">
+          <span>排序</span>
+          <Segmented aria-label="排序方式" size="middle" value={sort} options={PROJECT_SORT_OPTIONS} onChange={(value) => { setSort(value as ProjectSort); setPage(1) }} />
+        </div>
         <Space size={10}><span className="project-count">共 {filtered.length} 项</span><Button icon={<ReloadOutlined />} onClick={() => void refresh()} loading={loading}>刷新</Button></Space>
       </div>
       {error ? <Alert className="inline-alert" type="warning" showIcon title="无法读取 Docker 数据" description={error.message} action={<Button size="small" onClick={() => void refresh()}>重试</Button>} /> : null}
