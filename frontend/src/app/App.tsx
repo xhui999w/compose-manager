@@ -8,6 +8,7 @@ import { ComposePage } from '../features/compose/ComposePage'
 import { AppShell, type PageKey } from './AppShell'
 
 const ContainersPage = lazy(() => import('../features/containers/ContainersPage').then((module) => ({ default: module.ContainersPage })))
+const WorkspacePage = lazy(() => import('../features/workspace/WorkspacePage').then((module) => ({ default: module.WorkspacePage })))
 const ImagesPage = lazy(() => import('../features/images/ImagesPage').then((module) => ({ default: module.ImagesPage })))
 const UpdateProgressPage = lazy(() => import('../features/updates/UpdateProgressPage').then((module) => ({ default: module.UpdateProgressPage })))
 const UpdatesPage = lazy(() => import('../features/updates/UpdatesPage').then((module) => ({ default: module.UpdatesPage })))
@@ -48,6 +49,7 @@ function AuthenticatedApp({ dark, onThemeChange, username, onLogout }: { dark: b
   const [page, setPage] = useState<PageKey>('compose')
   const content = useMemo(() => {
     switch (page) {
+      case 'workspace': return <WorkspacePage />
       case 'containers': return <ContainersPage />
       case 'images': return <ImagesPage />
       case 'progress': return <UpdateProgressPage />

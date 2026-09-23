@@ -15,7 +15,6 @@ import (
 	"github.com/compose-manager/compose-manager/backend/internal/model"
 	"github.com/compose-manager/compose-manager/backend/internal/store"
 	"github.com/pmezard/go-difflib/difflib"
-	"gopkg.in/yaml.v3"
 )
 
 var ErrConflict = errors.New("Compose file changed since it was opened")
@@ -61,16 +60,8 @@ func (e *Editor) Validate(ctx context.Context, projectKey, originalPath, content
 	if err != nil {
 		return "", err
 	}
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(content), &node); err != nil {
-		return "", fmt.Errorf("YAML validation failed: %w", err)
-	}
-	var document composeDocument
-	if err := yaml.Unmarshal([]byte(content), &document); err != nil {
-		return "", fmt.Errorf("Compose structure validation failed: %w", err)
-	}
-	if len(document.Services) == 0 {
-		return "", errors.New("Compose file must define at least one service")
+	if err := validateComposeDocument(content); err != nil {
+		return "", err
 	}
 	temp, err := os.CreateTemp(filepath.Dir(resolved), ".cm-candidate-*.yaml")
 	if err != nil {

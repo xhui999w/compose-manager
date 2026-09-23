@@ -33,7 +33,7 @@ compose-manager/
 │   ├── app/                    # shell、router、主题
 │   ├── api/                    # typed fetch client
 │   ├── components/             # 通用紧凑控件
-│   └── features/               # compose/containers/images/history/settings
+│   └── features/               # compose/workspace/containers/images/history/settings
 ├── docs/
 ├── data/
 ├── backups/
@@ -103,6 +103,10 @@ cpu% = cpuDelta / systemDelta * onlineCPUs * 100
 
 Diff 使用行级 unified diff；前端 Monaco Diff Editor 只负责展示，最终 diff 和基准哈希由服务端生成。
 
+工作区 API 使用根目录数字 ID 与相对路径，不接受客户端提交绝对路径。服务端组合路径后再次通过 `PathGuard`，并解析完整现存路径的符号链接，防止目录 symlink 指向根目录外。目录列表跳过符号链接和非普通文件。可编辑文件类型采用白名单，单文件上限 2 MiB；保存使用 SHA-256 乐观锁、独立工作区备份和同目录原子替换。
+
+新建 Compose 要求目标目录不存在。服务端在目标目录写权限受限的临时文件，完成 YAML 和 `docker compose config --quiet` 后才原子命名为 `compose.yaml`；可选 `up -d` 仍通过固定动作 Runner 执行。失败时仅清理本次创建且仍为空的目录，不接收任何 shell 命令。
+
 ## 8. SQLite
 
 SQLite 保存设置、端口访问配置、Compose 版本元数据、更新记录和审计事件。启用 WAL、foreign keys、busy timeout，迁移在启动时事务执行。
@@ -160,9 +164,11 @@ MVP 提供 `manual` provider：自定义 URL 或 domain/port/path。UGREENlink�
 - `GET /auth/status`, `POST /auth/setup`, `POST /auth/login`, `POST /auth/logout`
 - `GET /overview`
 - `GET /compose/projects`, `POST /compose/projects/{key}/actions`
+- `POST /compose/projects`（创建新项目）
 - `GET /compose/projects/{key}/logs`
 - `GET|POST /compose/projects/{key}/file`, `POST .../validate`, `POST .../apply`
 - `GET /compose/projects/{key}/versions`, `POST .../versions/{id}/restore`
+- `GET /workspace/roots`, `GET /workspace/entries`, `GET|PUT /workspace/file`, `POST /workspace/directories`
 - `GET /containers`, `POST /containers/{id}/actions`, `GET /containers/{id}/logs`
 - `GET /images`, `DELETE /images/{id}`
 - `GET /updates`, `POST /updates/run`

@@ -29,6 +29,7 @@ type Service struct {
 	guard         *compose.PathGuard
 	runner        *compose.Runner
 	editor        *compose.Editor
+	workspace     *compose.Workspace
 	store         *store.Store
 	checker       *update.RegistryChecker
 	updateMu      sync.RWMutex
@@ -39,7 +40,7 @@ type Service struct {
 }
 
 func New(cfg config.Config, engine *dockerapi.Engine, guard *compose.PathGuard, runner *compose.Runner, editor *compose.Editor, store *store.Store) *Service {
-	return &Service{config: cfg, docker: engine, discovery: compose.NewDiscovery(guard), guard: guard, runner: runner, editor: editor, store: store, checker: update.NewRegistryChecker(cfg.ProxyURL), updateMap: map[string]string{}, updateTasks: map[string]*model.UpdateTask{}, activeUpdates: map[string]string{}}
+	return &Service{config: cfg, docker: engine, discovery: compose.NewDiscovery(guard), guard: guard, runner: runner, editor: editor, workspace: compose.NewWorkspace(guard, runner, cfg.BackupDir), store: store, checker: update.NewRegistryChecker(cfg.ProxyURL), updateMap: map[string]string{}, updateTasks: map[string]*model.UpdateTask{}, activeUpdates: map[string]string{}}
 }
 
 func (s *Service) Health(ctx context.Context) map[string]any {
@@ -248,6 +249,63 @@ func (s *Service) Restore(ctx context.Context, key string, id int64, baseSHA str
 		status = "failed"
 	}
 	_ = s.store.Audit(ctx, "compose.restore", "project", key, status, fmt.Sprintf("version=%d apply=%t", id, apply))
+	return result, err
+}
+
+func (s *Service) WorkspaceRoots() []compose.WorkspaceRoot {
+	return s.workspace.Roots()
+}
+
+func (s *Service) WorkspaceEntries(rootID int, path string) ([]compose.WorkspaceEntry, error) {
+	if s.config.DemoMode {
+		return []compose.WorkspaceEntry{}, nil
+	}
+	return s.workspace.List(rootID, path)
+}
+
+func (s *Service) WorkspaceFile(rootID int, path string) (compose.WorkspaceFile, error) {
+	if s.config.DemoMode {
+		return compose.WorkspaceFile{}, errors.New("demo mode is read-only")
+	}
+	return s.workspace.ReadFile(rootID, path)
+}
+
+func (s *Service) SaveWorkspaceFile(ctx context.Context, rootID int, path, content, baseSHA string) (compose.WorkspaceFile, error) {
+	if s.config.DemoMode {
+		return compose.WorkspaceFile{}, errors.New("demo mode is read-only")
+	}
+	result, err := s.workspace.SaveFile(ctx, rootID, path, content, baseSHA)
+	status := "success"
+	if err != nil {
+		status = "failed"
+	}
+	_ = s.store.Audit(ctx, "workspace.save", "file", fmt.Sprintf("root-%d:%s", rootID, path), status, "")
+	return result, err
+}
+
+func (s *Service) CreateWorkspaceDirectory(ctx context.Context, rootID int, path string) error {
+	if s.config.DemoMode {
+		return errors.New("demo mode is read-only")
+	}
+	err := s.workspace.CreateDirectory(rootID, path)
+	status := "success"
+	if err != nil {
+		status = "failed"
+	}
+	_ = s.store.Audit(ctx, "workspace.mkdir", "directory", fmt.Sprintf("root-%d:%s", rootID, path), status, "")
+	return err
+}
+
+func (s *Service) CreateProject(ctx context.Context, rootID int, directory, name, content string, apply bool) (compose.CreatedProject, error) {
+	if s.config.DemoMode {
+		return compose.CreatedProject{}, errors.New("demo mode is read-only")
+	}
+	result, err := s.workspace.CreateProject(ctx, rootID, directory, name, content, apply)
+	status := "success"
+	if err != nil {
+		status = "failed"
+	}
+	_ = s.store.Audit(ctx, "compose.create", "project", name, status, fmt.Sprintf("root=%d directory=%s apply=%t", rootID, directory, apply))
 	return result, err
 }
 

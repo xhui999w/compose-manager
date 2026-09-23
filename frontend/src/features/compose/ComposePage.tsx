@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   CaretRightOutlined, EditOutlined, FileTextOutlined, LinkOutlined, MoreOutlined, PauseOutlined,
-  PlayCircleOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined,
+  PlayCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined,
 } from '@ant-design/icons'
 import { Alert, Button, Dropdown, Empty, Input, Pagination, Popconfirm, Segmented, Select, Space, Spin, Table, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -12,6 +12,7 @@ import { useResource } from '../../hooks/useResource'
 import type { Container, Project } from '../../types'
 import { formatBytes, formatDate, formatPercent } from '../../utils/format'
 import { ComposeEditorDrawer } from './ComposeEditorDrawer'
+import { CreateComposeModal } from './CreateComposeModal'
 import { LogsDrawer } from './LogsDrawer'
 
 const PROJECT_PAGE_SIZE = 30
@@ -105,6 +106,7 @@ export function ComposePage() {
   const [pageSize, setPageSize] = useState(PROJECT_PAGE_SIZE)
   const [editorProject, setEditorProject] = useState<Project>()
   const [logsProject, setLogsProject] = useState<Project>()
+  const [createOpen, setCreateOpen] = useState(false)
   const [busyKey, setBusyKey] = useState('')
   const { data = [], error, loading, refresh } = useResource(api.projects, [])
   const [messageApi, contextHolder] = message.useMessage()
@@ -142,7 +144,7 @@ export function ComposePage() {
   return (
     <section className="page compose-page">
       {contextHolder}
-      <PageHeader title="Compose 项目" description="每 24 小时自动检查镜像更新；发现新版后由你确认是否更新。" />
+      <PageHeader title="Compose 项目" description="每 24 小时自动检查镜像更新；发现新版后由你确认是否更新。" action={<Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建 Compose</Button>} />
       <div className="table-toolbar compose-toolbar">
         <Space className="compose-toolbar__filters" size={10}>
           <Input allowClear className="search-input" prefix={<SearchOutlined />} placeholder="搜索项目名称、路径或描述…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
@@ -161,6 +163,7 @@ export function ComposePage() {
       {filtered.length > pageSize ? <Pagination className="project-pagination" current={currentPage} pageSize={pageSize} total={filtered.length} showSizeChanger pageSizeOptions={[20, 30, 40, 50]} showTotal={(total) => `共 ${total} 项`} onChange={(nextPage, nextPageSize) => { setPage(nextPageSize === pageSize ? nextPage : 1); setPageSize(nextPageSize) }} /> : null}
       <ComposeEditorDrawer project={editorProject} open={Boolean(editorProject)} onClose={() => setEditorProject(undefined)} onSaved={refresh} />
       <LogsDrawer project={logsProject} open={Boolean(logsProject)} onClose={() => setLogsProject(undefined)} />
+      <CreateComposeModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={refresh} />
     </section>
   )
 }

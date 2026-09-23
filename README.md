@@ -1,6 +1,6 @@
 # Compose Manager
 
-Compose Manager 是一个面向绿联 NAS、群晖 NAS 和 Linux Docker 主机的轻量级 Compose 管理面板。它将 Compose 项目总览、日常启停、日志、可靠编辑、镜像引用检查和更新记录放在一个高密度桌面界面中。
+Compose Manager 是一个面向绿联 NAS、群晖 NAS 和 Linux Docker 主机的轻量级 Compose 管理面板。它将 Compose 项目总览、日常启停、日志、受限项目文件管理、可靠编辑、镜像引用检查和更新记录放在一个高密度桌面界面中。
 
 > 当前状态：Phase 0–7 的可运行 MVP 骨架。真实 Docker 数据依赖宿主机 Docker Socket 与 `docker compose` CLI；在未连接 Docker 的开发环境中，健康检查仍可用，Docker 页面会显示明确的不可用状态。
 
@@ -91,7 +91,7 @@ docker logs compose-manager 2>&1 | grep setupToken
 - `/var/run/docker.sock`（只由后端访问）
 - `/data`（SQLite 与历史记录）
 - `/backups`（Compose 文件备份）
-- `/compose`（待扫描 Compose 目录，默认只读；若启用网页编辑需按需改成读写）
+- `/compose`（待扫描 Compose 目录；项目文件编辑与新建 Compose 需要读写挂载）
 
 Docker Socket 等同宿主机高权限入口。即使已有内建登录，也应仅在可信局域网部署；需要公网访问时必须使用 HTTPS、来源限制和额外的反向代理防护。MVP 不提供多租户或企业 RBAC。
 
@@ -123,7 +123,7 @@ Docker Socket 等同宿主机高权限入口。即使已有内建登录，也应
 
 ## MVP 边界
 
-MVP 覆盖单机 Docker、Compose 项目发现与操作、源码编辑与恢复、镜像引用与安全删除判断、每 24 小时自动更新检查、用户确认更新、访问快捷方式和更新审计。应用商店、Swarm、Kubernetes、SSH/SFTP、文件管理、Nginx/证书/DNS、高级网络/卷管理、多租户和企业 RBAC 明确不在范围内。
+MVP 覆盖单机 Docker、Compose 项目发现与操作、受限 Compose 工作区与项目创建、源码编辑与恢复、镜像引用与安全删除判断、每 24 小时自动更新检查、用户确认更新、访问快捷方式和更新审计。应用商店、Swarm、Kubernetes、SSH/SFTP、根目录之外的通用文件管理、文件上传/删除/移动、Nginx/证书/DNS、高级网络/卷管理、多租户和企业 RBAC 明确不在范围内。
 
 ## License
 

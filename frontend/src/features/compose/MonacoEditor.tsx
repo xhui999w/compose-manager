@@ -26,11 +26,11 @@ if (!monaco.languages.getLanguages().some((language) => language.id === 'yaml'))
   })
 }
 
-export default function MonacoEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export default function MonacoEditor({ value, onChange, language = 'yaml', height = 'calc(100vh - 190px)' }: { value: string; onChange: (value: string) => void; language?: string; height?: string | number }) {
   return (
     <Editor
-      height="calc(100vh - 190px)"
-      language="yaml"
+      height={height}
+      language={language}
       value={value}
       onChange={(next) => onChange(next ?? '')}
       options={{ minimap: { enabled: false }, fontSize: 13, lineHeight: 21, automaticLayout: true, wordWrap: 'off', tabSize: 2, insertSpaces: true, formatOnPaste: true, scrollBeyondLastLine: false, find: { addExtraSpaceOnTop: false } }}

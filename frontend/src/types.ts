@@ -96,6 +96,11 @@ export type UpdateTask = {
 export type ComposeFile = { path: string; content: string; sha256: string }
 export type ComposeVersion = { id: number; projectKey: string; filePath: string; sha256: string; createdAt: string }
 
+export type WorkspaceRoot = { id: number; name: string; path: string }
+export type WorkspaceEntry = { name: string; path: string; kind: 'directory' | 'file'; size: number; modifiedAt: string; editable: boolean; composeFile: boolean }
+export type WorkspaceFile = { rootId: number; path: string; content: string; sha256: string }
+export type CreatedProject = { key: string; name: string; rootId: number; directory: string; file: string; output?: string }
+
 export type AuthStatus = {
   setupRequired: boolean
   authenticated: boolean

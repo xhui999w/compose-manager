@@ -55,3 +55,22 @@ func TestPathGuardRejectsWrongFilename(t *testing.T) {
 		t.Fatal("expected unsupported filename to be rejected")
 	}
 }
+
+func TestPathGuardRejectsSymlinkOutsideRoot(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "compose.yaml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "external")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink is unavailable: %v", err)
+	}
+	guard, _ := NewPathGuard([]string{root})
+	if _, err := guard.Resolve(filepath.Join(link, "compose.yaml")); err == nil {
+		t.Fatal("expected symlink escape to be rejected")
+	}
+	if _, err := guard.Resolve(filepath.Join(link, "missing", "nested", "compose.yaml")); err == nil {
+		t.Fatal("expected symlink escape with missing tail to be rejected")
+	}
+}

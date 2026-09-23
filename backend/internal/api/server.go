@@ -42,6 +42,7 @@ func (s *Server) routes(static http.Handler) {
 	s.mux.HandleFunc("POST /api/v1/auth/logout", s.authLogout)
 	s.mux.HandleFunc("GET /api/v1/overview", s.overview)
 	s.mux.HandleFunc("GET /api/v1/compose/projects", s.projects)
+	s.mux.HandleFunc("POST /api/v1/compose/projects", s.createProject)
 	s.mux.HandleFunc("POST /api/v1/compose/projects/{key}/actions", s.projectAction)
 	s.mux.HandleFunc("GET /api/v1/compose/projects/{key}/logs", s.projectLogs)
 	s.mux.HandleFunc("GET /api/v1/compose/projects/{key}/file", s.getFile)
@@ -49,6 +50,11 @@ func (s *Server) routes(static http.Handler) {
 	s.mux.HandleFunc("PUT /api/v1/compose/projects/{key}/file", s.saveFile)
 	s.mux.HandleFunc("GET /api/v1/compose/projects/{key}/versions", s.versions)
 	s.mux.HandleFunc("POST /api/v1/compose/projects/{key}/versions/{id}/restore", s.restore)
+	s.mux.HandleFunc("GET /api/v1/workspace/roots", s.workspaceRoots)
+	s.mux.HandleFunc("GET /api/v1/workspace/entries", s.workspaceEntries)
+	s.mux.HandleFunc("GET /api/v1/workspace/file", s.workspaceFile)
+	s.mux.HandleFunc("PUT /api/v1/workspace/file", s.saveWorkspaceFile)
+	s.mux.HandleFunc("POST /api/v1/workspace/directories", s.createWorkspaceDirectory)
 	s.mux.HandleFunc("GET /api/v1/containers", s.containers)
 	s.mux.HandleFunc("POST /api/v1/containers/{id}/actions", s.containerAction)
 	s.mux.HandleFunc("GET /api/v1/containers/{id}/logs", s.containerLogs)
@@ -195,6 +201,25 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": result, "warning": optionalError(err)})
 }
 
+func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		RootID    int    `json:"rootId"`
+		Directory string `json:"directory"`
+		Name      string `json:"name"`
+		Content   string `json:"content"`
+		Apply     bool   `json:"apply"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	result, err := s.service.CreateProject(r.Context(), request.RootID, request.Directory, request.Name, request.Content, request.Apply)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "COMPOSE_CREATE_FAILED", err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"data": result})
+}
+
 func (s *Server) projectAction(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Action  string `json:"action"`
@@ -294,6 +319,86 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+}
+
+func (s *Server) workspaceRoots(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"data": s.service.WorkspaceRoots()})
+}
+
+func (s *Server) workspaceEntries(w http.ResponseWriter, r *http.Request) {
+	rootID, ok := workspaceRootID(w, r)
+	if !ok {
+		return
+	}
+	result, err := s.service.WorkspaceEntries(rootID, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "WORKSPACE_LIST_FAILED", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+}
+
+func (s *Server) workspaceFile(w http.ResponseWriter, r *http.Request) {
+	rootID, ok := workspaceRootID(w, r)
+	if !ok {
+		return
+	}
+	result, err := s.service.WorkspaceFile(rootID, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "WORKSPACE_FILE_READ_FAILED", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+}
+
+func (s *Server) saveWorkspaceFile(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		RootID  int    `json:"rootId"`
+		Path    string `json:"path"`
+		Content string `json:"content"`
+		BaseSHA string `json:"baseSha"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	result, err := s.service.SaveWorkspaceFile(r.Context(), request.RootID, request.Path, request.Content, request.BaseSHA)
+	if err != nil {
+		status, code := http.StatusUnprocessableEntity, "WORKSPACE_FILE_SAVE_FAILED"
+		if errors.Is(err, compose.ErrWorkspaceConflict) {
+			status, code = http.StatusConflict, "FILE_CONFLICT"
+		}
+		writeError(w, status, code, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+}
+
+func (s *Server) createWorkspaceDirectory(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		RootID int    `json:"rootId"`
+		Path   string `json:"path"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	if err := s.service.CreateWorkspaceDirectory(r.Context(), request.RootID, request.Path); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "WORKSPACE_DIRECTORY_CREATE_FAILED", err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true})
+}
+
+func workspaceRootID(w http.ResponseWriter, r *http.Request) (int, bool) {
+	value := strings.TrimSpace(r.URL.Query().Get("root"))
+	if value == "" {
+		return 0, true
+	}
+	rootID, err := strconv.Atoi(value)
+	if err != nil || rootID < 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_WORKSPACE_ROOT", errors.New("invalid workspace root"))
+		return 0, false
+	}
+	return rootID, true
 }
 
 func (s *Server) containers(w http.ResponseWriter, r *http.Request) {

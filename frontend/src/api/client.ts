@@ -1,4 +1,4 @@
-import type { AuthStatus, ComposeFile, ComposeVersion, Container, ImageReference, Project, SystemInfo, UpdateRecord, UpdateTask } from '../types'
+import type { AuthStatus, ComposeFile, ComposeVersion, Container, CreatedProject, ImageReference, Project, SystemInfo, UpdateRecord, UpdateTask, WorkspaceEntry, WorkspaceFile, WorkspaceRoot } from '../types'
 
 type Envelope<T> = { data: T; warning?: string | null }
 type APIErrorPayload = { error?: { code?: string; message?: string } }
@@ -54,6 +54,12 @@ export const api = {
   saveFile: (key: string, content: string, baseSha: string, apply: boolean) => request(`/compose/projects/${encodeURIComponent(key)}/file`, { method: 'PUT', body: JSON.stringify({ content, baseSha, apply }) }),
   versions: async (key: string) => (await request<Envelope<ComposeVersion[]>>(`/compose/projects/${encodeURIComponent(key)}/versions`)).data,
   restore: (key: string, id: number, baseSha: string, apply: boolean) => request(`/compose/projects/${encodeURIComponent(key)}/versions/${id}/restore`, { method: 'POST', body: JSON.stringify({ baseSha, apply }) }),
+  createProject: async (rootId: number, directory: string, name: string, content: string, apply: boolean) => (await request<Envelope<CreatedProject>>('/compose/projects', { method: 'POST', body: JSON.stringify({ rootId, directory, name, content, apply }) })).data,
+  workspaceRoots: async () => (await request<Envelope<WorkspaceRoot[]>>('/workspace/roots')).data,
+  workspaceEntries: async (rootId: number, path = '') => (await request<Envelope<WorkspaceEntry[]>>(`/workspace/entries?root=${rootId}&path=${encodeURIComponent(path)}`)).data,
+  workspaceFile: async (rootId: number, path: string) => (await request<Envelope<WorkspaceFile>>(`/workspace/file?root=${rootId}&path=${encodeURIComponent(path)}`)).data,
+  saveWorkspaceFile: async (rootId: number, path: string, content: string, baseSha: string) => (await request<Envelope<WorkspaceFile>>('/workspace/file', { method: 'PUT', body: JSON.stringify({ rootId, path, content, baseSha }) })).data,
+  createWorkspaceDirectory: (rootId: number, path: string) => request('/workspace/directories', { method: 'POST', body: JSON.stringify({ rootId, path }) }),
   containers: async () => (await request<Envelope<Container[]>>('/containers')).data,
   containerAction: (id: string, action: string) => request(`/containers/${encodeURIComponent(id)}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
   containerLogs: (id: string) => request<{ logs: string }>(`/containers/${encodeURIComponent(id)}/logs?tail=500`),

@@ -39,9 +39,9 @@ func (g *PathGuard) Resolve(path string) (string, error) {
 		return "", err
 	}
 	absolute = filepath.Clean(absolute)
-	parent := filepath.Dir(absolute)
-	if evaluated, err := filepath.EvalSymlinks(parent); err == nil {
-		absolute = filepath.Join(evaluated, filepath.Base(absolute))
+	absolute, err = evalSymlinksWithMissingTail(absolute)
+	if err != nil {
+		return "", err
 	}
 	for _, root := range g.roots {
 		relative, err := filepath.Rel(root, absolute)
@@ -53,6 +53,29 @@ func (g *PathGuard) Resolve(path string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("%w: %s", ErrPathOutsideRoots, path)
+}
+
+func evalSymlinksWithMissingTail(path string) (string, error) {
+	current := path
+	missing := []string{}
+	for {
+		evaluated, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			for index := len(missing) - 1; index >= 0; index-- {
+				evaluated = filepath.Join(evaluated, missing[index])
+			}
+			return filepath.Clean(evaluated), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
 }
 
 func (g *PathGuard) ResolveComposeFile(path string) (string, error) {
