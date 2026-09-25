@@ -212,7 +212,7 @@ export function ImagesPage() {
     <section className="page image-page">
       {contextHolder}
       <PageHeader
-        title="镜像"
+        title="镜像管理"
         description="按真实引用关系分类；只检查、不自动清理，删除前服务端会再次确认。"
         action={<div className="reclaim-summary"><SafetyCertificateOutlined /><span>预计可释放</span><strong>{formatBytes(reclaimable)}</strong></div>}
       />

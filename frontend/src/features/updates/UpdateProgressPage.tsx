@@ -84,7 +84,7 @@ export function UpdateProgressPage() {
         loading={loading}
         scroll={{ x: 1100 }}
         pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 个任务` }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无更新任务；从 Compose 或容器页面点击更新后，会在这里显示实时进度。" /> }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无更新任务；从 Compose 页面点击更新后，会在这里显示实时进度。" /> }}
         expandable={{
           rowExpandable: (task) => task.output.length > 0,
           expandedRowRender: (task) => <pre className="update-output">{task.output.join('\n')}</pre>,

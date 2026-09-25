@@ -1,16 +1,15 @@
 import type { ReactNode } from 'react'
-import { CloudDownloadOutlined, ClusterOutlined, ContainerOutlined, DatabaseOutlined, FileTextOutlined, FolderOpenOutlined, LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
+import { CloudDownloadOutlined, ClusterOutlined, DatabaseOutlined, FileTextOutlined, FolderOpenOutlined, LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
 import { Button, Layout, Menu, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { SystemStatusBar } from './SystemStatusBar'
 
-export type PageKey = 'compose' | 'workspace' | 'containers' | 'images' | 'progress' | 'updates' | 'settings'
+export type PageKey = 'compose' | 'workspace' | 'images' | 'progress' | 'updates' | 'settings'
 
 const items: MenuProps['items'] = [
   { key: 'compose', icon: <ClusterOutlined />, label: 'Compose' },
-  { key: 'workspace', icon: <FolderOpenOutlined />, label: '项目文件' },
-  { key: 'containers', icon: <ContainerOutlined />, label: '容器' },
-  { key: 'images', icon: <DatabaseOutlined />, label: '镜像' },
+  { key: 'workspace', icon: <FolderOpenOutlined />, label: 'Docker 根目录' },
+  { key: 'images', icon: <DatabaseOutlined />, label: '镜像管理' },
   { key: 'progress', icon: <CloudDownloadOutlined />, label: '更新进度' },
   { key: 'updates', icon: <FileTextOutlined />, label: '更新记录' },
   { key: 'settings', icon: <SettingOutlined />, label: '设置' },

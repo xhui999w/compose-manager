@@ -103,7 +103,7 @@ button, input, select, textarea { font: inherit; }
 .compose-heading-actions .ant-input-affix-wrapper, .compose-heading-actions .ant-select-selector, .compose-heading-actions > .ant-btn { height: 34px !important; }
 .compose-heading-actions .ant-select { width: 100%; }
 .compose-heading-actions > .ant-btn:last-child { padding-inline: 16px; font-weight: 620; }
-.compose-project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.compose-project-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: start; gap: 10px; }
 .project-card { min-width: 0; overflow: hidden; border: 1px solid #dce3ec; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px rgba(29, 44, 73, .035); transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
 .project-card:hover { border-color: #b9c9e7; box-shadow: 0 4px 13px rgba(29, 44, 73, .07); transform: translateY(-1px); }
 .project-card--update { border-color: #ead48d; }
@@ -219,7 +219,7 @@ button, input, select, textarea { font: inherit; }
   .compose-page .page-header { align-items: flex-start; flex-direction: column; gap: 10px; }
   .compose-page .page-header__action { width: 100%; }
   .compose-heading-actions { grid-template-columns: minmax(210px, 1fr) 126px 156px 34px auto; }
-  .compose-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .compose-project-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .workspace-toolbar { grid-template-columns: 250px minmax(220px, 1fr); }
   .workspace-toolbar > .ant-typography { display: none; }
   .create-compose-fields { grid-template-columns: 1fr 1fr; }
@@ -235,6 +235,18 @@ button, input, select, textarea { font: inherit; }
   .page, .settings-page { min-width: 680px; }
   .compose-heading-actions { grid-template-columns: minmax(220px, 1fr) 132px 158px 34px auto; min-width: 680px; }
   .compose-project-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 1799px) and (min-width: 1500px) {
+  .compose-project-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1499px) and (min-width: 1200px) {
+  .compose-project-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 899px) and (min-width: 761px) {
+  .compose-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -113,7 +113,7 @@ export function WorkspacePage() {
   return (
     <section className="page workspace-page">
       {contextHolder}
-      <PageHeader title="项目文件" description="浏览并编辑已挂载的 Compose 项目配置；所有路径都限制在允许的根目录内。" action={<Space><Button icon={<FolderAddOutlined />} onClick={() => setFolderOpen(true)}>新建文件夹</Button><Button icon={<ReloadOutlined />} onClick={() => void loadEntries()} loading={loading}>刷新</Button></Space>} />
+      <PageHeader title="Docker 根目录" description="浏览并编辑已挂载的 Docker 与 Compose 项目文件；所有路径都限制在允许的根目录内。" action={<Space><Button icon={<FolderAddOutlined />} onClick={() => setFolderOpen(true)}>新建文件夹</Button><Button icon={<ReloadOutlined />} onClick={() => void loadEntries()} loading={loading}>刷新</Button></Space>} />
       {error ? <Alert className="inline-alert" type="error" showIcon title="文件操作失败" description={error} closable onClose={() => setError('')} /> : null}
       <div className="workspace-toolbar">
         <Select aria-label="Compose 根目录" value={rootId} options={roots.map((root) => ({ value: root.id, label: `${root.name}（${root.path}）` }))} onChange={(value) => { setRootId(value); setPath(''); void loadEntries(value, '') }} />
