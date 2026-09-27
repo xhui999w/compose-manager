@@ -97,6 +97,8 @@ Docker Socket 等同宿主机高权限入口。即使已有内建登录，也应
 
 若容器内提示无权访问 Docker Socket，请将宿主机 Socket 的组 ID 传给 `DOCKER_GID`（例如 `stat -c '%g' /var/run/docker.sock` 的结果）后重建容器。
 
+部分绿联 NAS 会将 `/volume1/docker` 内的目录和 Compose 文件限制为仅宿主机 root 可读；此时面板默认的非特权用户无法扫描这些项目。本机部署可在服务配置中设置 `user: "0:0"`，并在已有 `cap_drop: [ALL]` 下仅追加 `cap_add: [DAC_OVERRIDE, FOWNER]`。这会让面板进程能读取、修改挂载的 Docker 根目录，安全边界取决于面板登录、允许扫描的目录及网络访问控制；不要把面板直接暴露到公网。调整前请备份 Compose 配置，并确认 `/data`、`/backups` 对所选运行账号可写。
+
 ## 配置
 
 Compose 首页每个项目的“更多”菜单可打开“删除项目”。页面先展示将移除的容器、Compose 文件及可选镜像和数据卷；确认时需输入项目名。后端执行前重新核对文件、Docker 标签与引用，并在 `/backups/deleted-projects/` 保存 Compose 配置。项目目录删除需单独勾选且仅允许独占的子目录；共享镜像、外部数据卷及其他项目使用的目录会保留。备份仅包含 Compose 配置，不包含应用数据或数据卷。
