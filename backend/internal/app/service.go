@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compose-manager/compose-manager/backend/internal/access"
 	"github.com/compose-manager/compose-manager/backend/internal/compose"
 	"github.com/compose-manager/compose-manager/backend/internal/config"
 	dockerapi "github.com/compose-manager/compose-manager/backend/internal/docker"
@@ -23,20 +23,24 @@ import (
 )
 
 type Service struct {
-	config        config.Config
-	docker        *dockerapi.Engine
-	discovery     *compose.Discovery
-	guard         *compose.PathGuard
-	runner        *compose.Runner
-	editor        *compose.Editor
-	workspace     *compose.Workspace
-	store         *store.Store
-	checker       *update.RegistryChecker
-	updateMu      sync.RWMutex
-	updateMap     map[string]string
-	taskMu        sync.RWMutex
-	updateTasks   map[string]*model.UpdateTask
-	activeUpdates map[string]string
+	config          config.Config
+	docker          *dockerapi.Engine
+	discovery       *compose.Discovery
+	guard           *compose.PathGuard
+	runner          *compose.Runner
+	editor          *compose.Editor
+	workspace       *compose.Workspace
+	store           *store.Store
+	checker         *update.RegistryChecker
+	updateMu        sync.RWMutex
+	updateMap       map[string]string
+	taskMu          sync.RWMutex
+	updateTasks     map[string]*model.UpdateTask
+	activeUpdates   map[string]string
+	webScanMu       sync.Mutex
+	removalGate     sync.RWMutex
+	removalTicketMu sync.Mutex
+	removalTickets  map[string]removalTicket
 }
 
 func New(cfg config.Config, engine *dockerapi.Engine, guard *compose.PathGuard, runner *compose.Runner, editor *compose.Editor, store *store.Store) *Service {
@@ -101,9 +105,16 @@ func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {
 		projectImages[key][canonicalImageRef(container.Image)] = struct{}{}
 	}
 	result := make([]model.Project, 0, len(projects))
+	webConfigs, webErr := s.store.WebAccess(ctx)
+	if webErr != nil {
+		return nil, webErr
+	}
 	updateStatuses := s.updateStatusSnapshot()
 	for _, project := range projects {
 		enrichProject(project, s.config.NASIP, s.config.DefaultScheme)
+		if cfg, ok := webConfigs[project.Key]; ok {
+			project.InternalURL = access.ResolveSaved(project.Containers, s.config.NASIP, cfg)
+		}
 		project.UpdateStatus, project.UpdateCount = summarizeProjectUpdates(projectImages[project.Key], updateStatuses)
 		result = append(result, *project)
 	}
@@ -160,6 +171,8 @@ func (s *Service) Project(ctx context.Context, key string) (model.Project, error
 }
 
 func (s *Service) ProjectAction(ctx context.Context, key, action, service string) (string, error) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return "演示模式未执行真实操作", nil
 	}
@@ -219,6 +232,8 @@ func (s *Service) ValidateFile(ctx context.Context, key, content string) (string
 }
 
 func (s *Service) SaveFile(ctx context.Context, key, content, baseSHA string, apply bool) (compose.SaveResult, error) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return compose.SaveResult{}, errors.New("demo mode is read-only")
 	}
@@ -240,6 +255,8 @@ func (s *Service) Versions(ctx context.Context, key string) ([]model.ComposeVers
 }
 
 func (s *Service) Restore(ctx context.Context, key string, id int64, baseSHA string, apply bool) (compose.SaveResult, error) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return compose.SaveResult{}, errors.New("demo mode is read-only")
 	}
@@ -271,6 +288,8 @@ func (s *Service) WorkspaceFile(rootID int, path string) (compose.WorkspaceFile,
 }
 
 func (s *Service) SaveWorkspaceFile(ctx context.Context, rootID int, path, content, baseSHA string) (compose.WorkspaceFile, error) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return compose.WorkspaceFile{}, errors.New("demo mode is read-only")
 	}
@@ -284,6 +303,8 @@ func (s *Service) SaveWorkspaceFile(ctx context.Context, rootID int, path, conte
 }
 
 func (s *Service) CreateWorkspaceDirectory(ctx context.Context, rootID int, path string) error {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return errors.New("demo mode is read-only")
 	}
@@ -297,6 +318,8 @@ func (s *Service) CreateWorkspaceDirectory(ctx context.Context, rootID int, path
 }
 
 func (s *Service) CreateProject(ctx context.Context, rootID int, directory, name, content string, apply bool) (compose.CreatedProject, error) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return compose.CreatedProject{}, errors.New("demo mode is read-only")
 	}
@@ -310,6 +333,8 @@ func (s *Service) CreateProject(ctx context.Context, rootID int, directory, name
 }
 
 func (s *Service) ContainerAction(ctx context.Context, id, action string) error {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
 		return nil
 	}
@@ -371,6 +396,8 @@ func (s *Service) Images(ctx context.Context) ([]model.ImageReference, error) {
 }
 
 func (s *Service) DeleteImage(ctx context.Context, id string) error {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	images, err := s.Images(ctx)
 	if err != nil {
 		return err
@@ -505,6 +532,8 @@ func (s *Service) markUpdatedImagesCurrent(projectKey, service string, container
 var ErrUpdateAlreadyRunning = errors.New("update task is already running")
 
 func (s *Service) StartUpdate(ctx context.Context, key, service string) (model.UpdateTask, error) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	project, err := s.Project(ctx, key)
 	if err != nil {
 		return model.UpdateTask{}, err
@@ -545,6 +574,8 @@ func (s *Service) UpdateTasks() []model.UpdateTask {
 }
 
 func (s *Service) runUpdateTask(id, taskKey string) {
+	s.removalGate.RLock()
+	defer s.removalGate.RUnlock()
 	timeout := s.operationTimeout() * 3
 	if timeout <= 0 {
 		timeout = 6 * time.Minute
@@ -817,14 +848,6 @@ func enrichProject(project *model.Project, nasIP, scheme string) {
 		if container.State == "running" {
 			running++
 			project.Healthy++
-		}
-		if project.InternalURL == "" {
-			for _, port := range container.Ports {
-				if port.PublicPort > 0 && (port.Type == "tcp" || port.Type == "") {
-					project.InternalURL = (&url.URL{Scheme: scheme, Host: fmt.Sprintf("%s:%d", nasIP, port.PublicPort)}).String()
-					break
-				}
-			}
 		}
 	}
 	switch {

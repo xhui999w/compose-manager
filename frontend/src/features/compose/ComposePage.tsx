@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  CaretRightOutlined, EditOutlined, FileTextOutlined, LinkOutlined, MoreOutlined, PauseOutlined,
+  CaretRightOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, LinkOutlined, MoreOutlined, PauseOutlined,
   PlayCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UploadOutlined,
 } from '@ant-design/icons'
 import { Alert, Button, Dropdown, Empty, Input, Pagination, Popconfirm, Select, Spin, Table, Tooltip, message } from 'antd'
@@ -14,6 +14,8 @@ import { formatBytes, formatDate, formatPercent } from '../../utils/format'
 import { ComposeEditorDrawer } from './ComposeEditorDrawer'
 import { CreateComposeModal } from './CreateComposeModal'
 import { LogsDrawer } from './LogsDrawer'
+import { WebAccessModal } from './WebAccessModal'
+import { DeleteProjectModal } from './DeleteProjectModal'
 
 const PROJECT_PAGE_SIZE = 30
 
@@ -47,17 +49,21 @@ type ProjectCardProps = {
   onUpdate: (project: Project) => Promise<void>
   onEdit: (project: Project) => void
   onLogs: (project: Project) => void
+  onDelete: (project: Project) => void
   onRefresh: () => Promise<void>
 }
 
-function ProjectCard({ project, busyKey, onAction, onUpdate, onEdit, onLogs, onRefresh }: ProjectCardProps) {
+function ProjectCard({ project, busyKey, onAction, onUpdate, onEdit, onLogs, onDelete, onRefresh }: ProjectCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
   const running = project.status === 'running'
   const updateAvailable = project.updateStatus === 'available'
   const moreItems = [
     ...(project.internalUrl ? [{ key: 'access', label: <a href={project.internalUrl} target="_blank" rel="noreferrer">访问项目</a>, icon: <LinkOutlined /> }] : []),
+    { key: 'web-access', label: project.internalUrl ? '网页访问设置' : '网页访问', icon: <LinkOutlined />, onClick: () => setAccessOpen(true) },
     { key: 'path', label: project.configFile || '未定位 Compose 文件', disabled: true },
     { key: 'refresh', label: '重新发现', icon: <ReloadOutlined />, onClick: () => void onRefresh() },
+    { key: 'delete', label: '删除项目', danger: true, icon: <DeleteOutlined />, onClick: () => onDelete(project) },
   ]
   return (
     <article className={`project-card${expanded ? ' is-expanded' : ''}${updateAvailable ? ' project-card--update' : ''}`}>
@@ -105,6 +111,7 @@ function ProjectCard({ project, busyKey, onAction, onUpdate, onEdit, onLogs, onR
         </div>
       </div>
       {expanded ? <div className="project-card__containers"><ContainerSubtable containers={project.containers} /></div> : null}
+      {accessOpen ? <WebAccessModal project={project} onClose={() => setAccessOpen(false)} onSaved={onRefresh} /> : null}
     </article>
   )
 }
@@ -140,6 +147,7 @@ export function ComposePage() {
   const [editorProject, setEditorProject] = useState<Project>()
   const [logsProject, setLogsProject] = useState<Project>()
   const [createOpen, setCreateOpen] = useState(false)
+  const [removalProject, setRemovalProject] = useState<Project>()
   const [busyKey, setBusyKey] = useState('')
   const { data = [], error, loading, refresh } = useResource(api.projects, [])
   const [messageApi, contextHolder] = message.useMessage()
@@ -180,12 +188,13 @@ export function ComposePage() {
       <PageHeader title="Compose 项目" action={<ComposeToolbar query={query} status={status} sort={sort} loading={loading} onQuery={(value) => { setQuery(value); setPage(1) }} onStatus={(value) => { setStatus(value); setPage(1) }} onSort={(value) => { setSort(value); setPage(1) }} onRefresh={refresh} onCreate={() => setCreateOpen(true)} />} />
       {error ? <Alert className="inline-alert" type="warning" showIcon title="无法读取 Docker 数据" description={error.message} action={<Button size="small" onClick={() => void refresh()}>重试</Button>} /> : null}
       <Spin spinning={loading}>
-        {visible.length ? <div className="compose-project-grid">{visible.map((project) => <ProjectCard key={project.key} project={project} busyKey={busyKey} onAction={runAction} onUpdate={startUpdate} onEdit={setEditorProject} onLogs={setLogsProject} onRefresh={refresh} />)}</div> : <Empty className="compose-empty" description="没有符合条件的 Compose 项目" />}
+        {visible.length ? <div className="compose-project-grid">{visible.map((project) => <ProjectCard key={project.key} project={project} busyKey={busyKey} onAction={runAction} onUpdate={startUpdate} onEdit={setEditorProject} onLogs={setLogsProject} onDelete={setRemovalProject} onRefresh={refresh} />)}</div> : <Empty className="compose-empty" description="没有符合条件的 Compose 项目" />}
       </Spin>
       {filtered.length > pageSize ? <Pagination className="project-pagination" current={currentPage} pageSize={pageSize} total={filtered.length} showSizeChanger pageSizeOptions={[20, 30, 40, 50]} showTotal={(total) => `共 ${total} 项`} onChange={(nextPage, nextPageSize) => { setPage(nextPageSize === pageSize ? nextPage : 1); setPageSize(nextPageSize) }} /> : null}
       <ComposeEditorDrawer project={editorProject} open={Boolean(editorProject)} onClose={() => setEditorProject(undefined)} onSaved={refresh} />
       <LogsDrawer project={logsProject} open={Boolean(logsProject)} onClose={() => setLogsProject(undefined)} />
       <CreateComposeModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={refresh} />
+      {removalProject ? <DeleteProjectModal project={removalProject} onClose={() => setRemovalProject(undefined)} onDeleted={refresh} /> : null}
     </section>
   )
 }

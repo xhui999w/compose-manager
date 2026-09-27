@@ -32,6 +32,38 @@ func TestAuthenticationMiddleware(t *testing.T) {
 	}
 	server := &Server{auth: manager}
 	handler := server.authenticate(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		request := httptest.NewRequest(method, "/api/v1/compose/projects/sample/deletion", nil)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("deletion must require authentication: %d", response.Code)
+		}
+		if method == http.MethodPost {
+			request.AddCookie(&http.Cookie{Name: manager.CookieName(), Value: result.SessionToken})
+			response = httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("deletion must require CSRF: %d", response.Code)
+			}
+		}
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		probeRequest := httptest.NewRequest(method, "/api/v1/compose/projects/transmission2/web-access", nil)
+		probeResponse := httptest.NewRecorder()
+		handler.ServeHTTP(probeResponse, probeRequest)
+		if probeResponse.Code != http.StatusUnauthorized {
+			t.Fatalf("web access must require login, got %d", probeResponse.Code)
+		}
+		if method == http.MethodPut {
+			probeRequest.AddCookie(&http.Cookie{Name: manager.CookieName(), Value: result.SessionToken})
+			probeResponse = httptest.NewRecorder()
+			handler.ServeHTTP(probeResponse, probeRequest)
+			if probeResponse.Code != http.StatusForbidden {
+				t.Fatalf("saving web access must require CSRF, got %d", probeResponse.Code)
+			}
+		}
+	}
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
 	response := httptest.NewRecorder()

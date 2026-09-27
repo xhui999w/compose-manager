@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS project_web_access (
+  project_key TEXT PRIMARY KEY,
+  config TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS compose_versions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_key TEXT NOT NULL,

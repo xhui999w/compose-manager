@@ -1,4 +1,4 @@
-import type { AuthStatus, ComposeFile, ComposeVersion, Container, CreatedProject, ImageReference, Project, SystemInfo, UpdateRecord, UpdateTask, WorkspaceEntry, WorkspaceFile, WorkspaceRoot } from '../types'
+import type { AuthStatus, ComposeFile, ComposeVersion, Container, CreatedProject, ImageReference, Project, SystemInfo, UpdateRecord, UpdateTask, WorkspaceEntry, WorkspaceFile, WorkspaceRoot, WebAccessConfig, WebAccessResult, RemovalPlan, RemovalRequest, RemovalResult } from '../types'
 
 type Envelope<T> = { data: T; warning?: string | null }
 type APIErrorPayload = { error?: { code?: string; message?: string } }
@@ -47,6 +47,10 @@ export const api = {
 	logout: async () => { await request<void>('/auth/logout', { method: 'POST' }); csrfToken = '' },
   overview: async () => (await request<Envelope<SystemInfo>>('/overview')).data,
   projects: async () => (await request<Envelope<Project[]>>('/compose/projects')).data,
+  previewRemoval: async (key: string) => (await request<Envelope<RemovalPlan>>(`/compose/projects/${encodeURIComponent(key)}/deletion`)).data,
+  deleteProject: async (key: string, options: RemovalRequest) => (await request<Envelope<RemovalResult>>(`/compose/projects/${encodeURIComponent(key)}/deletion`, { method: 'POST', body: JSON.stringify(options) })).data,
+  projectWebAccess: async (key: string) => (await request<Envelope<WebAccessResult>>(`/compose/projects/${encodeURIComponent(key)}/web-access`)).data,
+  saveProjectWebAccess: (key: string, config: WebAccessConfig) => request<void>(`/compose/projects/${encodeURIComponent(key)}/web-access`, { method: 'PUT', body: JSON.stringify(config) }),
   projectAction: (key: string, action: string, service = '') => request<{ output: string }>(`/compose/projects/${encodeURIComponent(key)}/actions`, { method: 'POST', body: JSON.stringify({ action, service }) }),
   logs: (key: string, service = '') => request<{ logs: string }>(`/compose/projects/${encodeURIComponent(key)}/logs?tail=500&service=${encodeURIComponent(service)}`),
   file: async (key: string) => (await request<Envelope<ComposeFile>>(`/compose/projects/${encodeURIComponent(key)}/file`)).data,

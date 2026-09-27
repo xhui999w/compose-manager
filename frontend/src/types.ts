@@ -1,5 +1,9 @@
 export type Port = { ip?: string; privatePort: number; publicPort?: number; type: string }
 
+export type WebAccessConfig = { service: string; privatePort: number; publicPort: number; scheme: 'http' | 'https'; path: string }
+export type WebAccessCandidate = WebAccessConfig & { container: string; url: string; status: 'web' | 'auth' | 'redirect' | 'http' | 'certificate' | 'unreachable' | 'stopped'; httpStatus?: number }
+export type WebAccessResult = { candidates: WebAccessCandidate[]; saved?: WebAccessConfig; recommendedUrl?: string }
+
 export type Container = {
   id: string
   name: string
@@ -94,6 +98,10 @@ export type UpdateTask = {
 }
 
 export type ComposeFile = { path: string; content: string; sha256: string }
+export type RemovalItem = { kind: 'container' | 'image' | 'volume'; id: string; name: string; state?: string; reason?: string }
+export type RemovalPlan = { key: string; name: string; file: string; directory: string; hostFile?: string; hostDirectory?: string; directoryBlocked?: string; items: RemovalItem[]; retained: string[]; token: string }
+export type RemovalRequest = { token: string; name: string; directory: boolean; images: boolean; volumes: boolean }
+export type RemovalResult = { deleted: string[]; retained: string[]; errors: string[]; backup: string }
 export type ComposeVersion = { id: number; projectKey: string; filePath: string; sha256: string; createdAt: string }
 
 export type WorkspaceRoot = { id: number; name: string; path: string }
