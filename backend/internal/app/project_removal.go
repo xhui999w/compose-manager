@@ -113,6 +113,9 @@ func (s *Service) removalPlan(ctx context.Context, key string) (RemovalPlan, err
 	if target == nil {
 		return plan, errors.New("未定位唯一 Compose 文件，不能安全删除项目")
 	}
+	if s.discovery.ExcludedFromProjects(target.File) {
+		return plan, errors.New("该 Compose 文件位于备份或非项目目录，不允许作为项目删除")
+	}
 	plan.Name, plan.File, plan.Directory = target.Name, target.File, target.WorkingDir
 	plan.ConfigSHA = target.SHA
 	resources, err := s.docker.RemovalResources(ctx)

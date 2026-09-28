@@ -52,8 +52,7 @@ func (d *Discovery) Scan(ctx context.Context) ([]DiscoveredProject, error) {
 			default:
 			}
 			if entry.IsDir() {
-				name := strings.ToLower(entry.Name())
-				if path != root && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "backups" || name == "vendor") {
+				if path != root && ignoredDiscoveryDir(entry.Name()) {
 					return filepath.SkipDir
 				}
 				depth := strings.Count(filepath.Clean(path), string(filepath.Separator)) - rootDepth
@@ -85,6 +84,46 @@ func (d *Discovery) Scan(ctx context.Context) ([]DiscoveredProject, error) {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
+}
+
+// Backup snapshots may contain valid Compose files, but are not runnable projects.
+// Keep this narrow so an ordinary project whose name contains "backup" stays visible.
+func ignoredDiscoveryDir(name string) bool {
+	name = strings.ToLower(name)
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	switch name {
+	case "node_modules", "backups", "vendor":
+		return true
+	}
+	return strings.HasPrefix(name, "_") && (strings.Contains(name, "-backup-") || strings.Contains(name, "-preswitch-"))
+}
+
+// A hidden snapshot must not become a deletion target through a direct API call.
+// An explicitly configured nested scan root still takes precedence.
+func (d *Discovery) ExcludedFromProjects(path string) bool {
+	for _, root := range d.guard.Roots() {
+		if !PathContains(root, path) {
+			continue
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(relative, string(filepath.Separator))
+		ignored := false
+		for _, part := range parts[:len(parts)-1] {
+			if ignoredDiscoveryDir(part) {
+				ignored = true
+				break
+			}
+		}
+		if !ignored {
+			return false
+		}
+	}
+	return true
 }
 
 func readDiscoveredProject(path string) (DiscoveredProject, error) {
