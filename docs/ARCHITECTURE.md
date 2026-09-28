@@ -80,7 +80,11 @@ systemDelta = cpu.system_cpu_usage - precpu.system_cpu_usage
 cpu% = cpuDelta / systemDelta * onlineCPUs * 100
 ```
 
-内存使用为 `usage - inactive_file`（可用时），上限取 stats limit。项目统计为子容器求和。采样结果缓存 3–5 秒，避免每个前端请求重复访问 socket。
+内存使用为 `usage - inactive_file`（可用时），上限取 stats limit。项目统计为子容器求和。采样结果缓存 5 秒，多个请求共享一次采集，最多 4 个工作协程；停止或移除容器的旧采样会淘汰，失败不缓存。
+
+目录发现只在展示路径缓存 30 秒，缓存仅保存项目和镜像引用摘要，并深复制后返回；每批读取 64 个目录项，避免大目录一次性分配。手动刷新 / 重新发现携带 `fresh=1` 立即重扫，创建、编辑、恢复、操作、更新及删除使缓存失效。单项目操作目标与镜像删除核对走无缓存发现，项目删除安全清单仍完整实时扫描；展示缓存不能用作删除依据。
+
+正式镜像不包含前端 source map。镜像默认 `GOGC=50` / `GOMEMLIMIT=96MiB`，这是 Go 运行时软目标，不是容器内存硬限制，也不控制 Linux 文件缓存。Argon2id 保留 64 MiB / 3 次计算强度，全局串行执行密码派生并在返回后回收临时工作内存，正常 API 不强制 GC。度量同时记录 Docker stats 与进程 RSS；容器重建后的文件缓存变化不能全部算作代码优化收益。
 
 ## 6. Compose CLI 与操作安全
 
