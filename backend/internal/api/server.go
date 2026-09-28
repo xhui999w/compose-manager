@@ -16,6 +16,7 @@ import (
 	"github.com/compose-manager/compose-manager/backend/internal/app"
 	authsvc "github.com/compose-manager/compose-manager/backend/internal/auth"
 	"github.com/compose-manager/compose-manager/backend/internal/compose"
+	"github.com/compose-manager/compose-manager/backend/internal/model"
 	"github.com/compose-manager/compose-manager/backend/internal/store"
 )
 
@@ -197,7 +198,13 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
-	result, err := s.service.Projects(r.Context())
+	var result []model.Project
+	var err error
+	if r.URL.Query().Get("fresh") == "1" {
+		result, err = s.service.RefreshProjects(r.Context())
+	} else {
+		result, err = s.service.Projects(r.Context())
+	}
 	if err != nil && len(result) == 0 {
 		writeError(w, http.StatusServiceUnavailable, "DISCOVERY_FAILED", err)
 		return

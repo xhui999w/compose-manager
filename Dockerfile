@@ -31,7 +31,9 @@ ENV CM_LISTEN_ADDR=:8080 \
     CM_DATA_DIR=/data \
     CM_BACKUP_DIR=/backups \
     CM_COMPOSE_ROOTS=/compose \
-    CM_DOCKER_HOST=unix:///var/run/docker.sock
+    CM_DOCKER_HOST=unix:///var/run/docker.sock \
+    GOGC=50 \
+    GOMEMLIMIT=96MiB
 USER compose-manager
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget -q -O - http://127.0.0.1:8080/api/v1/health || exit 1
 ENTRYPOINT ["/usr/local/bin/compose-manager"]

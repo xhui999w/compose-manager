@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -31,15 +34,46 @@ type composeDocument struct {
 type Discovery struct {
 	guard    *PathGuard
 	maxDepth int
+	cacheMu  sync.Mutex
+	cached   []DiscoveredProject
+	cachedAt time.Time
 }
 
 func NewDiscovery(guard *PathGuard) *Discovery { return &Discovery{guard: guard, maxDepth: 6} }
+
+// CachedScan is for display only. Mutation targets and deletion inventories
+// always use Scan / RemovalInventory, which do not consult this snapshot.
+func (d *Discovery) CachedScan(ctx context.Context) ([]DiscoveredProject, error) {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if d.cachedAt.IsZero() || time.Since(d.cachedAt) >= 30*time.Second {
+		projects, err := d.Scan(ctx)
+		if err != nil {
+			return nil, err
+		}
+		d.cached, d.cachedAt = projects, time.Now()
+	}
+	result := append([]DiscoveredProject(nil), d.cached...)
+	for i := range result {
+		result[i].Images = append([]string(nil), result[i].Images...)
+	}
+	return result, nil
+}
+
+func (d *Discovery) Invalidate() {
+	d.cacheMu.Lock()
+	d.cached, d.cachedAt = nil, time.Time{}
+	d.cacheMu.Unlock()
+}
 
 func (d *Discovery) Scan(ctx context.Context) ([]DiscoveredProject, error) {
 	seen := map[string]DiscoveredProject{}
 	for _, root := range d.guard.Roots() {
 		rootDepth := strings.Count(filepath.Clean(root), string(filepath.Separator))
-		walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		walkErr := walkDiscovery(ctx, root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				if os.IsNotExist(err) || os.IsPermission(err) {
 					return nil
@@ -82,8 +116,61 @@ func (d *Discovery) Scan(ctx context.Context) ([]DiscoveredProject, error) {
 	for _, project := range seen {
 		result = append(result, project)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Name == result[j].Name {
+			return result[i].File < result[j].File
+		}
+		return result[i].Name < result[j].Name
+	})
 	return result, nil
+}
+
+// WalkDir reads and sorts the entire directory before visiting it. Data folders
+// can contain hundreds of thousands of entries; bounded batches keep the live
+// allocation independent of directory width. Symlink directories are not followed.
+func walkDiscovery(ctx context.Context, path string, visit fs.WalkDirFunc) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return visit(path, nil, err)
+	}
+	return walkDiscoveryEntry(ctx, path, fs.FileInfoToDirEntry(info), visit)
+}
+
+func walkDiscoveryEntry(ctx context.Context, path string, entry fs.DirEntry, visit fs.WalkDirFunc) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := visit(path, entry, nil); err != nil {
+		if err == filepath.SkipDir && entry.IsDir() {
+			return nil
+		}
+		return err
+	}
+	if !entry.IsDir() {
+		return nil
+	}
+	directory, err := os.Open(path)
+	if err != nil {
+		return visit(path, entry, err)
+	}
+	defer directory.Close()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		batch, readErr := directory.ReadDir(64)
+		for _, child := range batch {
+			if err := walkDiscoveryEntry(ctx, filepath.Join(path, child.Name()), child, visit); err != nil {
+				return err
+			}
+		}
+		if readErr == io.EOF {
+			return nil
+		}
+		if readErr != nil {
+			return visit(path, entry, readErr)
+		}
+	}
 }
 
 // Backup snapshots may contain valid Compose files, but are not runnable projects.

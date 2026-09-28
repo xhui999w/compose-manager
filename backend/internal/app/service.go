@@ -41,6 +41,8 @@ type Service struct {
 	removalGate     sync.RWMutex
 	removalTicketMu sync.Mutex
 	removalTickets  map[string]removalTicket
+	statsMu         sync.Mutex
+	statsCache      map[string]containerStat
 }
 
 func New(cfg config.Config, engine *dockerapi.Engine, guard *compose.PathGuard, runner *compose.Runner, editor *compose.Editor, store *store.Store) *Service {
@@ -60,10 +62,25 @@ func (s *Service) Health(ctx context.Context) map[string]any {
 }
 
 func (s *Service) Projects(ctx context.Context) ([]model.Project, error) {
+	return s.projects(ctx, true)
+}
+
+func (s *Service) RefreshProjects(ctx context.Context) ([]model.Project, error) {
+	s.invalidateReadCaches()
+	return s.Projects(ctx)
+}
+
+func (s *Service) projects(ctx context.Context, display bool) ([]model.Project, error) {
 	if s.config.DemoMode {
 		return demoProjects(s.config.NASIP), nil
 	}
-	files, scanErr := s.discovery.Scan(ctx)
+	var files []compose.DiscoveredProject
+	var scanErr error
+	if display {
+		files, scanErr = s.discovery.CachedScan(ctx)
+	} else {
+		files, scanErr = s.discovery.Scan(ctx)
+	}
 	containers, dockerErr := s.docker.Containers(ctx)
 	if scanErr != nil && dockerErr != nil {
 		return nil, errors.Join(scanErr, dockerErr)
@@ -158,7 +175,7 @@ func (s *Service) Containers(ctx context.Context) ([]model.Container, error) {
 }
 
 func (s *Service) Project(ctx context.Context, key string) (model.Project, error) {
-	projects, err := s.Projects(ctx)
+	projects, err := s.projects(ctx, false)
 	if err != nil && len(projects) == 0 {
 		return model.Project{}, err
 	}
@@ -171,6 +188,7 @@ func (s *Service) Project(ctx context.Context, key string) (model.Project, error
 }
 
 func (s *Service) ProjectAction(ctx context.Context, key, action, service string) (string, error) {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -232,6 +250,7 @@ func (s *Service) ValidateFile(ctx context.Context, key, content string) (string
 }
 
 func (s *Service) SaveFile(ctx context.Context, key, content, baseSHA string, apply bool) (compose.SaveResult, error) {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -255,6 +274,7 @@ func (s *Service) Versions(ctx context.Context, key string) ([]model.ComposeVers
 }
 
 func (s *Service) Restore(ctx context.Context, key string, id int64, baseSHA string, apply bool) (compose.SaveResult, error) {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -288,6 +308,7 @@ func (s *Service) WorkspaceFile(rootID int, path string) (compose.WorkspaceFile,
 }
 
 func (s *Service) SaveWorkspaceFile(ctx context.Context, rootID int, path, content, baseSHA string) (compose.WorkspaceFile, error) {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -303,6 +324,7 @@ func (s *Service) SaveWorkspaceFile(ctx context.Context, rootID int, path, conte
 }
 
 func (s *Service) CreateWorkspaceDirectory(ctx context.Context, rootID int, path string) error {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -318,6 +340,7 @@ func (s *Service) CreateWorkspaceDirectory(ctx context.Context, rootID int, path
 }
 
 func (s *Service) CreateProject(ctx context.Context, rootID int, directory, name, content string, apply bool) (compose.CreatedProject, error) {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -333,6 +356,7 @@ func (s *Service) CreateProject(ctx context.Context, rootID int, directory, name
 }
 
 func (s *Service) ContainerAction(ctx context.Context, id, action string) error {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	if s.config.DemoMode {
@@ -355,6 +379,10 @@ func (s *Service) ContainerLogs(ctx context.Context, id string, tail int) (strin
 }
 
 func (s *Service) Images(ctx context.Context) ([]model.ImageReference, error) {
+	return s.images(ctx, true)
+}
+
+func (s *Service) images(ctx context.Context, display bool) ([]model.ImageReference, error) {
 	if s.config.DemoMode {
 		return demoImages(), nil
 	}
@@ -362,8 +390,18 @@ func (s *Service) Images(ctx context.Context) ([]model.ImageReference, error) {
 	if err != nil {
 		return nil, err
 	}
-	containers, _ := s.docker.Containers(ctx)
-	projects, _ := s.discovery.Scan(ctx)
+	containers, containersErr := s.docker.Containers(ctx)
+	var projects []compose.DiscoveredProject
+	var scanErr error
+	if display {
+		projects, scanErr = s.discovery.CachedScan(ctx)
+	} else {
+		projects, scanErr = s.discovery.Scan(ctx)
+	}
+	// Incomplete reference data must never authorize deletion.
+	if !display && (containersErr != nil || scanErr != nil) {
+		return nil, errors.Join(containersErr, scanErr)
+	}
 	for index := range images {
 		image := &images[index]
 		normalizeImageReferences(image)
@@ -398,7 +436,7 @@ func (s *Service) Images(ctx context.Context) ([]model.ImageReference, error) {
 func (s *Service) DeleteImage(ctx context.Context, id string) error {
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
-	images, err := s.Images(ctx)
+	images, err := s.images(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -574,6 +612,7 @@ func (s *Service) UpdateTasks() []model.UpdateTask {
 }
 
 func (s *Service) runUpdateTask(id, taskKey string) {
+	defer s.invalidateReadCaches()
 	s.removalGate.RLock()
 	defer s.removalGate.RUnlock()
 	timeout := s.operationTimeout() * 3
@@ -817,26 +856,7 @@ func (s *Service) sampleStats(ctx context.Context, containers []model.Container)
 	if s.docker == nil {
 		return
 	}
-	semaphore := make(chan struct{}, 6)
-	var wait sync.WaitGroup
-	for index := range containers {
-		if containers[index].State != "running" {
-			continue
-		}
-		wait.Add(1)
-		go func(index int) {
-			defer wait.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-			statCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-			defer cancel()
-			cpu, memory, limit, err := s.docker.Stats(statCtx, containers[index].ID)
-			if err == nil {
-				containers[index].CPUPercent, containers[index].MemoryBytes, containers[index].MemoryLimit = cpu, memory, limit
-			}
-		}(index)
-	}
-	wait.Wait()
+	s.sampleContainerStats(ctx, containers, s.docker.Stats)
 }
 
 func enrichProject(project *model.Project, nasIP, scheme string) {

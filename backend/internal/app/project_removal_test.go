@@ -25,6 +25,30 @@ type removalFixture struct {
 	failRemoval                       bool
 }
 
+func TestImageDeletionRechecksBeyondDisplayCache(t *testing.T) {
+	f := newRemovalFixture(t)
+	f.containers = nil
+	if err := os.WriteFile(f.file, []byte("name: sample\nservices: {}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Images(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f.file, []byte("name: sample\nservices:\n  web:\n    image: nginx:latest\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.service.DeleteImage(context.Background(), f.image); err == nil {
+		t.Fatal("cached display authorized deletion")
+	}
+	if len(f.deleted) != 0 {
+		t.Fatal("referenced image deleted")
+	}
+	projects, err := f.service.RefreshProjects(context.Background())
+	if err != nil || len(projects) != 1 {
+		t.Fatalf("refresh failed: %+v %v", projects, err)
+	}
+}
+
 func newRemovalFixture(t *testing.T) *removalFixture {
 	t.Helper()
 	base := t.TempDir()

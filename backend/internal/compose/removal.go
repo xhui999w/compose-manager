@@ -29,7 +29,7 @@ func (d *Discovery) RemovalInventory(ctx context.Context) ([]RemovalFile, error)
 	seen := map[string]bool{}
 	count := 0
 	for _, root := range d.guard.Roots() {
-		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		err := walkDiscovery(ctx, root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}

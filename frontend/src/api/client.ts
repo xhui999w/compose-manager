@@ -46,7 +46,7 @@ export const api = {
 	login: async (username: string, password: string) => applyAuthStatus((await request<Envelope<AuthStatus>>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })).data),
 	logout: async () => { await request<void>('/auth/logout', { method: 'POST' }); csrfToken = '' },
   overview: async () => (await request<Envelope<SystemInfo>>('/overview')).data,
-  projects: async () => (await request<Envelope<Project[]>>('/compose/projects')).data,
+  projects: async (fresh = false) => (await request<Envelope<Project[]>>(`/compose/projects${fresh ? '?fresh=1' : ''}`)).data,
   previewRemoval: async (key: string) => (await request<Envelope<RemovalPlan>>(`/compose/projects/${encodeURIComponent(key)}/deletion`)).data,
   deleteProject: async (key: string, options: RemovalRequest) => (await request<Envelope<RemovalResult>>(`/compose/projects/${encodeURIComponent(key)}/deletion`, { method: 'POST', body: JSON.stringify(options) })).data,
   projectWebAccess: async (key: string) => (await request<Envelope<WebAccessResult>>(`/compose/projects/${encodeURIComponent(key)}/web-access`)).data,

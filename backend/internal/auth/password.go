@@ -6,8 +6,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -22,12 +24,25 @@ const (
 
 var ErrInvalidPasswordHash = errors.New("invalid password hash")
 
+var passwordWorkMu sync.Mutex
+
+// Preserve Argon2's security cost, but do not allocate a work buffer for every
+// concurrent login. Authentication is infrequent: reclaim its large temporary
+// buffer here, never on the normal API request path.
+func passwordKey(password string, salt []byte, iterations, memory uint32, parallelism uint8, length uint32) []byte {
+	passwordWorkMu.Lock()
+	defer passwordWorkMu.Unlock()
+	key := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, length)
+	debug.FreeOSMemory()
+	return key
+}
+
 func hashPassword(password string) (string, error) {
 	salt := make([]byte, passwordSaltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generate password salt: %w", err)
 	}
-	key := argon2.IDKey([]byte(password), salt, passwordIterations, passwordMemory, passwordParallelism, passwordKeyLength)
+	key := passwordKey(password, salt, passwordIterations, passwordMemory, passwordParallelism, passwordKeyLength)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, passwordMemory, passwordIterations, passwordParallelism, base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
 
@@ -64,7 +79,7 @@ func verifyPassword(encoded, password string) (bool, error) {
 	if err != nil || len(expected) < 16 || len(expected) > 64 {
 		return false, ErrInvalidPasswordHash
 	}
-	actual := argon2.IDKey([]byte(password), salt, uint32(iterations), uint32(memory), uint8(parallelism), uint32(len(expected)))
+	actual := passwordKey(password, salt, uint32(iterations), uint32(memory), uint8(parallelism), uint32(len(expected)))
 	return subtle.ConstantTimeCompare(actual, expected) == 1, nil
 }
 

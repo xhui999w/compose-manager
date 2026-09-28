@@ -15,6 +15,9 @@ func TestPasswordHashRoundTrip(t *testing.T) {
 		t.Fatal("encoded password contains plaintext")
 	}
 	valid, err := verifyPassword(encoded, password)
+	if !strings.Contains(encoded, "$m=65536,t=3,p=2$") {
+		t.Fatal("password security cost changed")
+	}
 	if err != nil || !valid {
 		t.Fatalf("expected password to verify: valid=%t err=%v", valid, err)
 	}

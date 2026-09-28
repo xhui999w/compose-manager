@@ -335,6 +335,7 @@ func removalImageMatches(tag, digest, ref string) bool {
 }
 
 func (s *Service) DeleteProject(ctx context.Context, key string, request RemovalRequest) (RemovalResult, error) {
+	defer s.invalidateReadCaches()
 	result := RemovalResult{Deleted: []string{}, Retained: []string{}, Errors: []string{}}
 	if !s.removalGate.TryLock() {
 		return result, errors.New("有其他操作正在执行，请稍后重试")

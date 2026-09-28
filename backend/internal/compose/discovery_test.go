@@ -2,10 +2,86 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+func TestDisplayCacheIsIsolatedFromFreshScan(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "compose.yaml")
+	write := func(image string) {
+		t.Helper()
+		if err := os.WriteFile(file, []byte("services:\n  web:\n    image: "+image+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("nginx:1")
+	guard, err := NewPathGuard([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := NewDiscovery(guard)
+	ctx := context.Background()
+	first, err := d.CachedScan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first[0].Images[0] = "corrupted"
+	write("nginx:2")
+	cached, _ := d.CachedScan(ctx)
+	fresh, _ := d.Scan(ctx)
+	if cached[0].Images[0] != "nginx:1" || fresh[0].Images[0] != "nginx:2" {
+		t.Fatal("cache alias or safety scan cached")
+	}
+	d.Invalidate()
+	cached, _ = d.CachedScan(ctx)
+	if cached[0].Images[0] != "nginx:2" {
+		t.Fatal("invalidation failed")
+	}
+	write("nginx:3")
+	d.cachedAt = time.Now().Add(-31 * time.Second)
+	cached, _ = d.CachedScan(ctx)
+	if cached[0].Images[0] != "nginx:3" {
+		t.Fatal("expiry failed")
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := d.CachedScan(cancelled); err == nil {
+		t.Fatal("cancelled cache request accepted")
+	}
+}
+
+func TestBatchedDiscoveryPreservesNestedProjects(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < 150; i++ {
+		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("file-%03d", i)), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for depth := 0; depth <= 7; depth++ {
+		dir := root
+		for i := 0; i < depth; i++ {
+			dir = filepath.Join(dir, "nested")
+		}
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(fmt.Sprintf("name: app%d\nservices: {}\n", depth)), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	guard, err := NewPathGuard([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects, err := NewDiscovery(guard).Scan(context.Background())
+	if err != nil || len(projects) != 7 {
+		t.Fatalf("projects=%d err=%v", len(projects), err)
+	}
+}
 
 func TestDiscoverySkipsSnapshotsButKeepsRealProjects(t *testing.T) {
 	root := t.TempDir()
