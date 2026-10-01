@@ -67,7 +67,7 @@ func main() {
 	}()
 	backgroundCtx, cancelBackground := context.WithCancel(context.Background())
 	defer cancelBackground()
-	go runAutomaticUpdateChecks(backgroundCtx, service, cfg.UpdateCheckInterval, logger)
+	go runAutomaticUpdateChecks(backgroundCtx, service, cfg.UpdateCheckTime, cfg.UpdateCheckTimezone, logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
@@ -79,10 +79,8 @@ func main() {
 	}
 }
 
-func runAutomaticUpdateChecks(ctx context.Context, service *app.Service, interval time.Duration, logger *slog.Logger) {
-	if interval <= 0 {
-		interval = 24 * time.Hour
-	}
+func runAutomaticUpdateChecks(ctx context.Context, service *app.Service, checkAt, timezone string, logger *slog.Logger) {
+	location := loadCheckLocation(timezone)
 	check := func() {
 		images, err := service.CheckImageUpdates(ctx)
 		if err != nil {
@@ -102,18 +100,50 @@ func runAutomaticUpdateChecks(ctx context.Context, service *app.Service, interva
 				unknown++
 			}
 		}
-		logger.Info("automatic image update check completed", "available", available, "current", current, "unknown", unknown, "nextCheckIn", interval)
+		logger.Info("automatic image update check completed", "available", available, "current", current, "unknown", unknown)
 	}
 
-	check()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 	for {
+		next := nextDailyCheck(time.Now(), checkAt, location)
+		timer := time.NewTimer(time.Until(next))
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			check()
 		}
 	}
+}
+
+func loadCheckLocation(name string) *time.Location {
+	if location, err := time.LoadLocation(name); err == nil {
+		return location
+	}
+	// The official image includes tzdata, but keep the schedule deterministic if
+	// a minimal local build omits it or receives an invalid setting.
+	return time.FixedZone("Asia/Shanghai", 8*60*60)
+}
+
+func nextDailyCheck(now time.Time, checkAt string, location *time.Location) time.Time {
+	hour, minute := parseCheckTime(checkAt)
+	localNow := now.In(location)
+	next := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), hour, minute, 0, 0, location)
+	if !next.After(localNow) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next
+}
+
+func parseCheckTime(value string) (int, int) {
+	parsed, err := time.Parse("15:04", value)
+	if err != nil {
+		return 3, 0
+	}
+	return parsed.Hour(), parsed.Minute()
 }

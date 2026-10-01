@@ -19,7 +19,8 @@ type Config struct {
 	ProxyURL            string
 	DemoMode            bool
 	OperationTimeout    time.Duration
-	UpdateCheckInterval time.Duration
+	UpdateCheckTime     string
+	UpdateCheckTimezone string
 	SessionTTL          time.Duration
 	SecureCookie        bool
 	SetupToken          string
@@ -38,7 +39,8 @@ func Load() Config {
 		ProxyURL:            strings.TrimSpace(os.Getenv("CM_PROXY_URL")),
 		DemoMode:            envBool("CM_DEMO_MODE", false),
 		OperationTimeout:    envDuration("CM_OPERATION_TIMEOUT", 15*time.Minute),
-		UpdateCheckInterval: envDuration("CM_UPDATE_CHECK_INTERVAL", 24*time.Hour),
+		UpdateCheckTime:     env("CM_UPDATE_CHECK_TIME", "03:00"),
+		UpdateCheckTimezone: env("CM_UPDATE_CHECK_TIMEZONE", "Asia/Shanghai"),
 		SessionTTL:          envDuration("CM_SESSION_TTL", 7*24*time.Hour),
 		SecureCookie:        envBool("CM_SECURE_COOKIE", false),
 		SetupToken:          strings.TrimSpace(os.Getenv("CM_SETUP_TOKEN")),

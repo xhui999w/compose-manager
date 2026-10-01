@@ -88,7 +88,7 @@ Compose 首页提供“新建 Compose”入口。用户选择允许根目录，�
 
 ### 4.6 更新检查
 
-系统启动后立即执行一次镜像更新检查，此后默认每 24 小时自动检查。本阶段不提供手动检查入口，也绝不因检查结果自动升级。检查通过本地 RepoDigest 与远端 registry manifest digest 对比，将结果汇总到 Compose 项目、容器和镜像列表。Docker Hub 检查优先复用 Docker Engine 已配置的 HTTPS registry mirrors，避免管理面板与 Docker daemon 的网络路径不一致；私有仓库、限流或缺少本地 Digest 时明确显示等待检查状态。
+系统每天在固定时刻自动执行一次镜像更新检查，默认使用 NAS 本地时区的 03:00；所有 Compose 项目和镜像在同一轮检查，不按服务启动时间滚动。本阶段不提供手动检查入口，也绝不因检查结果自动升级。检查通过本地 RepoDigest 与远端 registry manifest digest 对比，将结果汇总到 Compose 项目、容器和镜像列表。Docker Hub 检查优先复用 Docker Engine 已配置的 HTTPS registry mirrors，避免管理面板与 Docker daemon 的网络路径不一致；私有仓库、限流或缺少本地 Digest 时明确显示等待检查状态。
 
 发现更新后，必须由用户在具体 Compose 项目上确认更新操作。
 
@@ -102,7 +102,7 @@ Compose 首页提供“新建 Compose”入口。用户选择允许根目录，�
 
 ### 4.8 设置
 
-设置项：Docker Socket、Compose 扫描目录、NAS 内网 IP、默认协议、镜像仓库、外网访问、页面紧凑度、深/浅主题。镜像更新默认每 24 小时自动检查。
+设置项：Docker Socket、Compose 扫描目录、NAS 内网 IP、默认协议、镜像仓库、外网访问、页面紧凑度、深/浅主题。镜像更新默认每天 03:00（NAS 本地时区）统一自动检查。
 
 ## 5. 安全与可靠性
 
@@ -128,7 +128,7 @@ Compose 首页提供“新建 Compose”入口。用户选择允许根目录，�
 - Compose 源码编辑、校验、Diff、备份、历史、恢复和应用。
 - 受限 Compose 工作区、常用配置编辑和新建 Compose 项目。
 - 镜像列表、引用关系、可清理估算、安全删除。
-- 每 24 小时自动检查镜像更新，以及必须由用户确认的更新流水线。
+- 每天固定时间统一检查镜像更新，以及必须由用户确认的更新流水线。
 - 内网快捷地址、自定义外网地址、Provider 接口。
 - SQLite 配置与审计记录、单容器部署。
 - 单管理员首次初始化、登录、退出、会话过期与 CSRF 防护。
