@@ -27,7 +27,7 @@ type Engine struct {
 }
 
 func New(host string) (*Engine, error) {
-	transport := &http.Transport{MaxIdleConns: 16, IdleConnTimeout: 30 * time.Second}
+	transport := &http.Transport{MaxIdleConns: 4, MaxIdleConnsPerHost: 2, IdleConnTimeout: 15 * time.Second}
 	baseURL := "http://docker"
 	switch {
 	case strings.HasPrefix(host, "unix://"):

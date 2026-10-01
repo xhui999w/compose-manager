@@ -53,6 +53,9 @@ func ParseProxyURL(value string) (*url.URL, error) {
 
 func registryHTTPClient(proxy *url.URL) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 4
+	transport.MaxIdleConnsPerHost = 2
+	transport.IdleConnTimeout = 15 * time.Second
 	if proxy != nil {
 		transport.Proxy = http.ProxyURL(proxy)
 	}

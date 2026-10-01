@@ -134,7 +134,7 @@ export function ContainersPage() {
   return (
     <section className="page containers-page">
       {contextHolder}
-      <PageHeader title="容器" description="卡片保持紧凑；镜像每 24 小时自动检查，发现更新后由你确认。" />
+      <PageHeader title="容器" description="卡片保持紧凑；每天凌晨 3:00 统一检查镜像，发现更新后由你确认。" />
       <div className="container-summary" aria-label="容器概览">
         <button className={filter === 'all' ? 'is-active' : ''} onClick={() => selectFilter('all')}><strong>{metrics.total}</strong><span>总容器</span></button>
         <button className={filter === 'running' ? 'is-active' : ''} onClick={() => selectFilter('running')}><strong className="summary-running">{metrics.running}</strong><span>运行中</span></button>
