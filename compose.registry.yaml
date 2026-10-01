@@ -18,6 +18,8 @@ services:
       CM_OPERATION_TIMEOUT: ${CM_OPERATION_TIMEOUT:-15m}
       CM_UPDATE_CHECK_TIME: ${CM_UPDATE_CHECK_TIME:-03:00}
       CM_UPDATE_CHECK_TIMEZONE: ${CM_UPDATE_CHECK_TIMEZONE:-Asia/Shanghai}
+      GOMEMLIMIT: ${GOMEMLIMIT:-96MiB}
+      GODEBUG: ${GODEBUG:-madvdontneed=1}
       CM_SETUP_TOKEN: ${CM_SETUP_TOKEN:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
