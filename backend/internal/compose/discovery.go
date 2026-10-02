@@ -180,6 +180,11 @@ func ignoredDiscoveryDir(name string) bool {
 	if strings.HasPrefix(name, ".") {
 		return true
 	}
+	// Build/export workflows commonly leave source snapshots beside the real
+	// project. Their Compose files are reference material, not runnable projects.
+	if strings.HasPrefix(name, "source-") {
+		return true
+	}
 	switch name {
 	case "node_modules", "backups", "vendor":
 		return true

@@ -99,6 +99,7 @@ func TestDiscoverySkipsSnapshotsButKeepsRealProjects(t *testing.T) {
 	current := makeFile("silnav")
 	snapshot := makeFile(filepath.Join("_silnav-preswitch-20260915-1215", "verify"))
 	backup := makeFile(filepath.Join("_openlist-backup-20260913-1528", "verify"))
+	sourceSnapshot := makeFile(filepath.Join("source-e6f476d", "verify"))
 	makeFile(filepath.Join("backups", "verify"))
 	makeFile(filepath.Join(".snapshot", "verify"))
 	makeFile("backup-helper")
@@ -121,7 +122,7 @@ func TestDiscoverySkipsSnapshotsButKeepsRealProjects(t *testing.T) {
 			t.Fatalf("backup was discovered as a project: %+v", project)
 		}
 	}
-	if discovery.ExcludedFromProjects(current) || !discovery.ExcludedFromProjects(snapshot) || !discovery.ExcludedFromProjects(backup) {
+	if discovery.ExcludedFromProjects(current) || !discovery.ExcludedFromProjects(snapshot) || !discovery.ExcludedFromProjects(backup) || !discovery.ExcludedFromProjects(sourceSnapshot) {
 		t.Fatal("project/deletion path classification differs from the scanner")
 	}
 	// Backups still participate in the conservative deletion reference inventory.
