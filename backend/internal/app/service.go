@@ -104,16 +104,21 @@ func (s *Service) projects(ctx context.Context, display bool) ([]model.Project, 
 		}
 		project := projects[key]
 		if project == nil {
-			project = &model.Project{Key: key, Name: key, Status: "not-running", UpdateStatus: "unknown", DiscoverySource: "labels", Containers: []model.Container{}}
-			if configPath := firstConfigPath(container.Labels["com.docker.compose.project.config_files"]); configPath != "" {
-				if resolved, err := s.guard.ResolveComposeFile(configPath); err == nil {
-					project.ConfigFile = resolved
-					project.WorkingDir = filepath.Dir(resolved)
-					project.Editable = true
-					project.DiscoverySource = "labels+file"
-				}
+			configPath := firstConfigPath(container.Labels["com.docker.compose.project.config_files"])
+			if configPath == "" {
+				continue
 			}
+			resolved, resolveErr := s.guard.ResolveComposeFile(configPath)
+			// A Compose project label alone is not enough: NAS applications often
+			// attach these labels to generated containers without leaving a
+			// manageable Compose file. Keep those containers on the Containers page,
+			// but do not present them as Compose projects.
+			if resolveErr != nil {
+				continue
+			}
+			project = &model.Project{Key: key, Name: key, Status: "not-running", UpdateStatus: "unknown", ConfigFile: resolved, WorkingDir: filepath.Dir(resolved), DiscoverySource: "labels+file", Editable: true, Containers: []model.Container{}}
 			projects[key] = project
+			projectImages[key] = map[string]struct{}{}
 		}
 		project.Containers = append(project.Containers, container)
 		if projectImages[key] == nil {
