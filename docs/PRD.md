@@ -47,7 +47,7 @@ Compose Manager 是一个单机、Compose 优先的轻量级 NAS Docker 管理�
 2. 配置的扫描根目录中 `compose.yaml`、`compose.yml`、`docker-compose.yaml`、`docker-compose.yml`。
 3. label 与扫描结果按规范化绝对路径和项目名合并。
 
-无法定位配置文件的 label 项目仍可展示和执行容器级只读操作，但禁止进行文件编辑或 Compose CLI 操作。
+无法定位配置文件的 label 容器不在 Compose 页面展示，避免把绿联等 NAS 应用生成的临时标签误当成项目；它们仍在容器页面展示并可执行容器级操作。镜像引用安全扫描仍会读取这些路径，避免误删镜像。
 
 ### 4.3 Compose 文件编辑
 
