@@ -36,3 +36,23 @@ func TestDigestForRepository(t *testing.T) {
 		t.Fatalf("digestForRepository() = %q, want empty", got)
 	}
 }
+
+func TestMemoryUsageExcludesReclaimableFileCache(t *testing.T) {
+	var data statsResponse
+	data.MemoryStats.Usage = 120
+	data.MemoryStats.Stats.ActiveFile = 70
+	data.MemoryStats.Stats.InactiveFile = 30
+	if got := memoryUsage(data); got != 20 {
+		t.Fatalf("memoryUsage() = %d, want 20", got)
+	}
+}
+
+func TestMemoryUsageUsesLargestCompatibleCacheField(t *testing.T) {
+	var data statsResponse
+	data.MemoryStats.Usage = 100
+	data.MemoryStats.Stats.InactiveFile = 10
+	data.MemoryStats.Stats.TotalCache = 80
+	if got := memoryUsage(data); got != 20 {
+		t.Fatalf("memoryUsage() = %d, want 20", got)
+	}
+}

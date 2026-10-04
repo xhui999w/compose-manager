@@ -151,9 +151,37 @@ type statsResponse struct {
 		Usage uint64 `json:"usage"`
 		Limit uint64 `json:"limit"`
 		Stats struct {
-			InactiveFile uint64 `json:"inactive_file"`
+			ActiveFile        uint64 `json:"active_file"`
+			InactiveFile      uint64 `json:"inactive_file"`
+			TotalActiveFile   uint64 `json:"total_active_file"`
+			TotalInactiveFile uint64 `json:"total_inactive_file"`
+			Cache             uint64 `json:"cache"`
+			TotalCache        uint64 `json:"total_cache"`
 		} `json:"stats"`
 	} `json:"memory_stats"`
+}
+
+func memoryUsage(data statsResponse) uint64 {
+	memory := data.MemoryStats.Usage
+	stats := data.MemoryStats.Stats
+	// Docker reports file cache in memory_stats.usage. It is reclaimable and
+	// should not make a container appear to consume application memory. Docker
+	// Engine exposes different names on cgroup v1/v2, so use the largest
+	// available representation without double-counting them.
+	reclaimable := stats.ActiveFile + stats.InactiveFile
+	if total := stats.TotalActiveFile + stats.TotalInactiveFile; total > reclaimable {
+		reclaimable = total
+	}
+	if stats.Cache > reclaimable {
+		reclaimable = stats.Cache
+	}
+	if stats.TotalCache > reclaimable {
+		reclaimable = stats.TotalCache
+	}
+	if reclaimable >= memory {
+		return 0
+	}
+	return memory - reclaimable
 }
 
 func (e *Engine) Stats(ctx context.Context, id string) (float64, uint64, uint64, error) {
@@ -172,11 +200,7 @@ func (e *Engine) Stats(ctx context.Context, id string) (float64, uint64, uint64,
 	if systemDelta > 0 && cpuDelta > 0 {
 		cpu = float64(cpuDelta) / float64(systemDelta) * float64(online) * 100
 	}
-	memory := data.MemoryStats.Usage
-	if data.MemoryStats.Stats.InactiveFile < memory {
-		memory -= data.MemoryStats.Stats.InactiveFile
-	}
-	return cpu, memory, data.MemoryStats.Limit, nil
+	return cpu, memoryUsage(data), data.MemoryStats.Limit, nil
 }
 
 func (e *Engine) ContainerAction(ctx context.Context, id, action string) error {

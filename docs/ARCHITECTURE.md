@@ -80,7 +80,7 @@ systemDelta = cpu.system_cpu_usage - precpu.system_cpu_usage
 cpu% = cpuDelta / systemDelta * onlineCPUs * 100
 ```
 
-内存使用为 `usage - inactive_file`（可用时），上限取 stats limit。项目统计为子容器求和。采样结果缓存 5 秒，多个请求共享一次采集，最多 4 个工作协程；停止或移除容器的旧采样会淘汰，失败不缓存。
+内存使用为 Docker stats `usage` 减去可回收文件缓存（cgroup v1/v2 的 `active_file`、`inactive_file`、`cache` 等字段取兼容的最大值），上限取 stats limit，避免把 Compose 扫描产生的页缓存误报为应用内存。项目统计为子容器求和。采样结果缓存 5 秒，多个请求共享一次采集，最多 4 个工作协程；停止或移除容器的旧采样会淘汰，失败不缓存。
 
 目录发现只在展示路径缓存 30 秒，缓存仅保存项目和镜像引用摘要，并深复制后返回；每批读取 64 个目录项，避免大目录一次性分配。手动刷新 / 重新发现携带 `fresh=1` 立即重扫，创建、编辑、恢复、操作、更新及删除使缓存失效。单项目操作目标与镜像删除核对走无缓存发现，项目删除安全清单仍完整实时扫描；展示缓存不能用作删除依据。
 
