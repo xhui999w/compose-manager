@@ -31,6 +31,18 @@ func (d *Discovery) RemovalInventory(ctx context.Context) ([]RemovalFile, error)
 	for _, root := range d.guard.Roots() {
 		err := walkDiscovery(ctx, root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
+				// NAS application data often contains a few root-owned or
+				// otherwise unreadable directories. Keep the path as an
+				// uncertainty marker and skip only that subtree; the caller can
+				// still remove an unrelated project, while image/volume deletion
+				// remains conservative whenever the marker is present.
+				if os.IsPermission(err) {
+					result = append(result, RemovalFile{DiscoveredProject: DiscoveredProject{File: path, Name: "权限受限目录"}, Uncertain: true})
+					if entry != nil && entry.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
 				return err
 			}
 			if err := ctx.Err(); err != nil {

@@ -22,6 +22,12 @@ type DiscoveredProject struct {
 	File       string
 	WorkingDir string
 	Images     []string
+	// Nested is true when the file lives below a directory that already has a
+	// Compose file. NAS applications often keep old export/install files in
+	// such nested directories; the service can hide those when no Docker
+	// project with the same key exists, while still retaining them in the
+	// deletion reference inventory.
+	Nested bool
 }
 
 type composeDocument struct {
@@ -104,6 +110,7 @@ func (d *Discovery) Scan(ctx context.Context) ([]DiscoveredProject, error) {
 			}
 			project, err := readDiscoveredProject(resolved)
 			if err == nil {
+				project.Nested = d.nestedUnderCompose(root, resolved)
 				seen[resolved] = project
 			}
 			return nil
@@ -123,6 +130,27 @@ func (d *Discovery) Scan(ctx context.Context) ([]DiscoveredProject, error) {
 		return result[i].Name < result[j].Name
 	})
 	return result, nil
+}
+
+func (d *Discovery) nestedUnderCompose(root, path string) bool {
+	dir := filepath.Dir(filepath.Clean(path))
+	root = filepath.Clean(root)
+	for dir != root && PathContains(root, dir) {
+		entries, err := os.ReadDir(dir)
+		if err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() && isComposeFilename(entry.Name()) {
+					return true
+				}
+			}
+		}
+		next := filepath.Dir(dir)
+		if next == dir {
+			break
+		}
+		dir = next
+	}
+	return false
 }
 
 // WalkDir reads and sorts the entire directory before visiting it. Data folders

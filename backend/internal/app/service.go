@@ -85,6 +85,7 @@ func (s *Service) projects(ctx context.Context, display bool) ([]model.Project, 
 	if scanErr != nil && dockerErr != nil {
 		return nil, errors.Join(scanErr, dockerErr)
 	}
+	files = filterNestedProjects(files, containers)
 	s.sampleStats(ctx, containers)
 	s.enrichContainerUpdates(containers)
 	projects := map[string]*model.Project{}
@@ -142,6 +143,39 @@ func (s *Service) projects(ctx context.Context, display bool) ([]model.Project, 
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
+}
+
+// filterNestedProjects prevents stale installer/export Compose files from
+// becoming cards. A nested file is kept only when it represents a distinct
+// Docker Compose project; a top-level file with the same key always wins.
+// RemovalInventory intentionally still scans nested files so image/volume
+// deletion remains conservative.
+func filterNestedProjects(files []compose.DiscoveredProject, containers []model.Container) []compose.DiscoveredProject {
+	topLevelKeys := make(map[string]struct{}, len(files))
+	containerProjects := make(map[string]struct{}, len(containers))
+	for _, file := range files {
+		if !file.Nested {
+			topLevelKeys[file.Key] = struct{}{}
+		}
+	}
+	for _, container := range containers {
+		if key := strings.TrimSpace(container.Project); key != "" {
+			containerProjects[key] = struct{}{}
+		}
+	}
+	filtered := make([]compose.DiscoveredProject, 0, len(files))
+	for _, file := range files {
+		if file.Nested {
+			if _, exists := topLevelKeys[file.Key]; exists {
+				continue
+			}
+			if _, exists := containerProjects[file.Key]; !exists {
+				continue
+			}
+		}
+		filtered = append(filtered, file)
+	}
+	return filtered
 }
 
 func (s *Service) Overview(ctx context.Context) (model.SystemInfo, error) {

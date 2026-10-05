@@ -171,7 +171,10 @@ func (s *Service) removalPlan(ctx context.Context, key string) (RemovalPlan, err
 			if compose.PathContains(plan.Directory, file.File) {
 				plan.DirectoryBlocked = "目录包含其他 Compose 文件，禁止整体删除"
 			}
-			if file.Uncertain {
+			// A permission-limited path outside this project must not block
+			// deleting the project itself. It does, however, keep image/volume
+			// candidates below because their references cannot be fully checked.
+			if file.Uncertain && pathsOverlap(plan.HostDirectory, mapper.host(file.File)) {
 				plan.DirectoryBlocked = "其他 Compose 存在无法解析的挂载引用，不能确认目录独占"
 			}
 			for _, source := range file.Binds {
