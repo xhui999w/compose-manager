@@ -139,7 +139,8 @@ func (d *Discovery) nestedUnderCompose(root, path string) bool {
 		entries, err := os.ReadDir(dir)
 		if err == nil {
 			for _, entry := range entries {
-				if !entry.IsDir() && isComposeFilename(entry.Name()) {
+				candidate := filepath.Join(dir, entry.Name())
+				if candidate != filepath.Clean(path) && !entry.IsDir() && isComposeFilename(entry.Name()) {
 					return true
 				}
 			}
