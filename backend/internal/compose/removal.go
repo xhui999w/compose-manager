@@ -38,9 +38,9 @@ func (d *Discovery) RemovalInventory(ctx context.Context) ([]RemovalFile, error)
 				// remains conservative whenever the marker is present.
 				if os.IsPermission(err) {
 					result = append(result, RemovalFile{DiscoveredProject: DiscoveredProject{File: path, Name: "权限受限目录"}, Uncertain: true})
-					if entry != nil && entry.IsDir() {
-						return filepath.SkipDir
-					}
+					// The walk already stops when opening this directory fails.
+					// Returning SkipDir from an open error would bubble out of the
+					// batched walker as a false global scan failure.
 					return nil
 				}
 				return err
